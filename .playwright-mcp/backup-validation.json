@@ -1,0 +1,47 @@
+{
+  "format": "generacion-issues-backup",
+  "version": 1,
+  "exportedAt": "2026-10-28T01:57:26.808Z",
+  "modules": [
+    {
+      "name": "Activos fijos",
+      "prefix": "AF"
+    }
+  ],
+  "issues": [
+    {
+      "testid": "AUTO-TEST",
+      "modulo": "Activos fijos",
+      "formulario": "Prueba persistencia",
+      "obs": "Issue creado desde la UI",
+      "status": "Open",
+      "severity": "Media",
+      "priority": "Alta",
+      "assigned": "",
+      "solucion": "",
+      "images": [],
+      "hasImage": false,
+      "id": "iss_1785371493673",
+      "fecha": "29/7/2026"
+    },
+    {
+      "testid": "GH-PAGES-TEST",
+      "modulo": "Activos fijos",
+      "formulario": "Prueba GitHub Pages",
+      "obs": "Creado desde la versión estática",
+      "status": "Open",
+      "severity": "Media",
+      "priority": "Alta",
+      "assigned": "",
+      "solucion": "",
+      "images": [],
+      "hasImage": false,
+      "id": "iss_1785373480091",
+      "fecha": "29/7/2026"
+    }
+  ],
+  "images": {
+    "iss_1785371493673": [],
+    "iss_1785373480091": []
+  }
+}

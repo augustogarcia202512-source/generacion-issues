@@ -1,0 +1,146 @@
+- generic [ref=f16e1]:
+  - generic [ref=f16e2]:
+    - generic [ref=f16e3]:
+      - generic [ref=f16e4]:
+        - generic [ref=f16e5]: Panamericana · Módulo Activos Fijos
+        - heading "Bitácora de Issues / QA" [level=1] [ref=f16e6]
+        - generic [ref=f16e7]: "Última actualización: 27/10/2026, 8:49:58 p. m."
+      - generic [ref=f16e8]:
+        - button "Descargar Excel" [ref=f16e9] [cursor=pointer]
+        - button "Módulos" [ref=f16e10] [cursor=pointer]
+        - button "+ Registrar issue" [active] [ref=f16e11] [cursor=pointer]
+    - generic [ref=f16e12]:
+      - generic [ref=f16e19]:
+        - generic [ref=f16e20]: "2"
+        - generic [ref=f16e21]: Open
+      - generic [ref=f16e22]:
+        - generic [ref=f16e23]: "0"
+        - generic [ref=f16e24]: Blocked
+      - generic [ref=f16e25]:
+        - generic [ref=f16e26]: "0"
+        - generic [ref=f16e27]: Ready for Retest
+      - generic [ref=f16e28]:
+        - generic [ref=f16e29]: "0"
+        - generic [ref=f16e30]: In Progress
+      - generic [ref=f16e31]:
+        - generic [ref=f16e32]: "0"
+        - generic [ref=f16e33]: Closed
+      - generic [ref=f16e34]:
+        - generic [ref=f16e35]: "0"
+        - generic [ref=f16e36]: Re-Open
+      - generic [ref=f16e37]:
+        - generic [ref=f16e38]: "2"
+        - generic [ref=f16e39]: Total
+    - generic [ref=f16e13]:
+      - generic [ref=f16e14]:
+        - button "Tabla" [ref=f16e15] [cursor=pointer]
+        - button "Kanban" [ref=f16e16] [cursor=pointer]
+      - textbox "Buscar por código del caso, título del hallazgo u observación..." [ref=f16e17]
+    - table [ref=f16e42]:
+      - rowgroup [ref=f16e43]:
+        - row [ref=f16e44]:
+          - columnheader "Código del caso" [ref=f16e45]
+          - columnheader "Título del hallazgo" [ref=f16e46]
+          - columnheader "Descripción del hallazgo" [ref=f16e47]
+          - columnheader "Evidencia" [ref=f16e48]
+          - columnheader "Severity" [ref=f16e49]
+          - columnheader "Priority" [ref=f16e50]
+          - columnheader "Status" [ref=f16e51]
+          - columnheader "Fecha" [ref=f16e52]
+          - columnheader [ref=f16e53]
+      - rowgroup [ref=f16e54]:
+        - row [ref=f16e55]:
+          - cell "AUTO-TEST" [ref=f16e56]
+          - cell "Prueba persistencia" [ref=f16e57]
+          - cell "Issue creado desde la UI" [ref=f16e58]
+          - cell [ref=f16e59]
+          - cell "Media" [ref=f16e61]
+          - cell "Alta" [ref=f16e62]
+          - cell "Open" [ref=f16e63]
+          - cell "29/7/2026" [ref=f16e65]
+          - cell [ref=f16e66]:
+            - generic [ref=f16e67]:
+              - button "Editar" [ref=f16e68] [cursor=pointer]
+              - button "Agregar comentario al issue AUTO-TEST" [ref=f16e69] [cursor=pointer]
+        - row [ref=f16e73]:
+          - cell "GH-PAGES-TEST" [ref=f16e74]
+          - cell "Prueba GitHub Pages" [ref=f16e75]
+          - cell "Creado desde la versión estática" [ref=f16e76]
+          - cell [ref=f16e77]
+          - cell "Media" [ref=f16e79]
+          - cell "Alta" [ref=f16e80]
+          - cell "Open" [ref=f16e81]
+          - cell "29/7/2026" [ref=f16e83]
+          - cell [ref=f16e84]:
+            - generic [ref=f16e85]:
+              - button "Editar" [ref=f16e86] [cursor=pointer]
+              - button "Agregar comentario al issue GH-PAGES-TEST" [ref=f16e87] [cursor=pointer]
+    - generic [ref=f16e18]: Datos visibles para cualquier persona con este enlace · Actualización en tiempo real
+  - generic [ref=f16e92]:
+    - heading "Registrar issue" [level=2] [ref=f16e93]
+    - generic [ref=f16e94]:
+      - generic [ref=f16e95]:
+        - generic [ref=f16e96]:
+          - generic [ref=f16e97]: Código del caso
+          - textbox [ref=f16e98]: AF-001
+        - generic [ref=f16e99]:
+          - generic [ref=f16e100]: Módulo afectado
+          - combobox [ref=f16e101]:
+            - option "Activos fijos (AF)" [selected]
+      - generic [ref=f16e102]:
+        - generic [ref=f16e103]: Título del hallazgo
+        - textbox "Ej. No permite registrar una baja" [ref=f16e104]
+      - generic [ref=f16e105]:
+        - generic [ref=f16e106]: Descripción del hallazgo
+        - textbox "Describe el comportamiento encontrado..." [ref=f16e107]
+      - generic [ref=f16e108]:
+        - generic [ref=f16e109]: Evidencia (imagen)
+        - generic [ref=f16e110]:
+          - generic [ref=f16e111]:
+            - button "Captura de pantalla" [ref=f16e112] [cursor=pointer]
+            - button "Pegar imagen · Ctrl+V" [ref=f16e113] [cursor=pointer]
+            - generic [ref=f16e114] [cursor=pointer]:
+              - text: Adjuntar imágenes
+              - button "Adjuntar imágenes" [ref=f16e115]
+          - generic [ref=f16e116]: Máx. 5 imágenes · PNG/JPG · o pega una captura con Ctrl+V
+      - generic [ref=f16e117]:
+        - generic [ref=f16e118]:
+          - generic [ref=f16e119]: Status
+          - combobox [ref=f16e120]:
+            - option "Open" [selected]
+            - option "Blocked"
+            - option "Ready for Retest"
+            - option "In Progress"
+            - option "Closed"
+            - option "Re-Open"
+        - generic [ref=f16e121]:
+          - generic [ref=f16e122]: Severity
+          - combobox [ref=f16e123]:
+            - option "Alta" [selected]
+            - option "Media"
+            - option "Baja"
+      - generic [ref=f16e124]:
+        - generic [ref=f16e125]:
+          - generic [ref=f16e126]: Priority
+          - combobox [ref=f16e127]:
+            - option "Alta" [selected]
+            - option "Media"
+            - option "Baja"
+        - generic [ref=f16e128]:
+          - generic [ref=f16e129]: Asignado a
+          - textbox "Nombre" [ref=f16e130]
+      - generic [ref=f16e131]:
+        - generic [ref=f16e132]: Trazabilidad / novedades
+        - generic [ref=f16e133]: Aún no hay novedades registradas.
+        - generic [ref=f16e135]:
+          - combobox "Tipo de actualización" [ref=f16e136]:
+            - option "Novedad" [selected]
+            - option "Seguimiento"
+            - option "Solución / cerrar issue"
+          - generic [ref=f16e137]: Closed automático al registrar solución
+        - generic [ref=f16e138]:
+          - textbox "Escribe la novedad, avance o solución..." [ref=f16e139]
+          - button "Agregar actualización" [ref=f16e140] [cursor=pointer]
+      - generic [ref=f16e142]:
+        - button "Cancelar" [ref=f16e143] [cursor=pointer]
+        - button "Guardar issue" [ref=f16e144] [cursor=pointer]

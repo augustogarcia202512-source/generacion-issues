@@ -1,0 +1,24 @@
+- generic [ref=f20e2]:
+  - generic [ref=f20e3]:
+    - generic [ref=f20e4]:
+      - generic [ref=f20e5]: Panamericana · Módulo Activos Fijos
+      - heading "Bitácora de Issues / QA" [level=1] [ref=f20e6]
+      - generic [ref=f20e7]: Cargando...
+    - generic [ref=f20e8]:
+      - button "Exportar datos" [ref=f20e9] [cursor=pointer]
+      - button "Importar datos" [ref=f20e10] [cursor=pointer]
+      - button "Descargar Excel" [ref=f20e11] [cursor=pointer]
+      - button "Módulos" [ref=f20e12] [cursor=pointer]
+      - button "+ Registrar issue" [ref=f20e13] [cursor=pointer]
+  - generic [ref=f20e15]:
+    - generic [ref=f20e16]:
+      - button "Tabla" [ref=f20e17] [cursor=pointer]
+      - button "Kanban" [ref=f20e18] [cursor=pointer]
+    - generic [ref=f20e19]:
+      - combobox "Filtrar por módulo" [ref=f20e20]:
+        - option "Todos los módulos" [selected]
+      - combobox "Filtrar por status" [ref=f20e21]:
+        - option "Todos los estados" [selected]
+      - button "Limpiar" [ref=f20e22] [cursor=pointer]
+    - textbox "Buscar por código del caso, título del hallazgo u observación..." [ref=f20e23]
+  - generic [ref=f20e24]: Datos visibles para cualquier persona con este enlace · Actualización en tiempo real

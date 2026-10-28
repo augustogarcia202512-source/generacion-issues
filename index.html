@@ -116,6 +116,15 @@ h1 span{ color: var(--text-dim); font-weight:500; }
 
 /* Toolbar */
 .toolbar{ display:flex; justify-content:space-between; align-items:center; margin-bottom:18px; flex-wrap:wrap; gap:12px;}
+.list-filters{ display:flex; gap:8px; align-items:center; }
+.filter-select,.filter-clear{
+background:var(--panel); border:1px solid var(--line); color:var(--text); padding:9px 12px;
+border-radius:3px; font-family:'Inter',sans-serif; font-size:12.5px;
+}
+.filter-select{ min-width:150px; }
+.filter-select:focus-visible{ outline:2px solid var(--amber); }
+.filter-clear{ color:var(--text-dim); cursor:pointer; }
+.filter-clear:hover{ border-color:var(--amber); color:var(--amber); }
 .view-toggle{ display:flex; border:1px solid var(--line); border-radius:3px; overflow:hidden; }
 .view-toggle button{
   background: var(--panel); color: var(--text-dim); border:none; padding:9px 18px;
@@ -310,6 +319,9 @@ tr:hover td{ background: rgba(232,163,61,0.04); }
       <div class="meta" id="lastUpdate">Cargando...</div>
     </div>
     <div class="header-actions">
+      <button class="module-btn" id="btnExportBackup">Exportar datos</button>
+      <button class="module-btn" id="btnImportBackup">Importar datos</button>
+      <input type="file" id="backupFile" accept="application/json,.json" hidden>
       <button class="module-btn" id="btnExportExcel">Descargar Excel</button>
       <button class="module-btn" id="btnModules">Módulos</button>
       <button class="new-btn" id="btnNew">+ Registrar issue</button>
@@ -322,6 +334,11 @@ tr:hover td{ background: rgba(232,163,61,0.04); }
     <div class="view-toggle">
       <button id="viewTableBtn" class="active">Tabla</button>
       <button id="viewKanbanBtn">Kanban</button>
+    </div>
+    <div class="list-filters">
+      <select class="filter-select" id="filterModule" aria-label="Filtrar por módulo"><option value="">Todos los módulos</option></select>
+      <select class="filter-select" id="filterStatus" aria-label="Filtrar por status"><option value="">Todos los estados</option></select>
+      <button type="button" class="filter-clear" id="btnClearFilters" title="Limpiar filtros">Limpiar</button>
     </div>
     <input class="filter-search" id="search" placeholder="Buscar por código del caso, título del hallazgo u observación...">
   </div>
@@ -347,12 +364,13 @@ tr:hover td{ background: rgba(232,163,61,0.04); }
         <div id="uploadZoneWrap">
           <div class="evidence-actions">
             <button type="button" id="btnCaptureScreen">Captura de pantalla</button>
+            <button type="button" id="btnPasteEvidence">Pegar imagen · Ctrl+V</button>
             <label class="upload-zone" id="uploadZone">
               Adjuntar imágenes
               <input type="file" id="f_image" accept="image/*" multiple>
             </label>
           </div>
-          <div class="capture-status" id="captureStatus">Máx. 5 imágenes · PNG/JPG</div>
+          <div class="capture-status" id="captureStatus">Máx. 5 imágenes · PNG/JPG · o pega una captura con Ctrl+V</div>
         </div>
         <div id="uploadPreviewWrap"></div>
       </div>
@@ -496,6 +514,8 @@ let modules = [];
 let imagesCache = {}; // id -> array of dataURLs, loaded from separate storage keys
 let editingId = null;
 let currentView = 'table';
+let filterModule = '';
+let filterStatus = '';
 let pendingImages = [];
 let pendingNovedades = [];
 let quickCommentIssueId = null;
@@ -506,7 +526,7 @@ const storageApi = (function(){
   const apiUrl = '/api/storage';
 
   async function apiRequest(method, key, value){
-    const url = method === 'GET'
+    const url = method === 'GET' || method === 'DELETE'
       ? `${apiUrl}?key=${encodeURIComponent(key)}`
       : apiUrl;
     const response = await fetch(url, {
@@ -601,6 +621,21 @@ function nextTestId(moduleName){
   return module.prefix + '-' + String(Math.max(0, ...numbers) + 1).padStart(3, '0');
 }
 
+function renderFilterOptions(){
+  const moduleSelect = document.getElementById('filterModule');
+  const statusSelect = document.getElementById('filterStatus');
+  const moduleNames = [...new Set([
+    ...modules.map(module => module.name),
+    ...issues.map(issue => issue.modulo).filter(Boolean)
+  ])].sort((a, b) => a.localeCompare(b));
+  moduleSelect.innerHTML = `<option value="">Todos los módulos</option>${moduleNames.map(name => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join('')}`;
+  statusSelect.innerHTML = `<option value="">Todos los estados</option>${STATUS_ORDER.map(status => `<option value="${status}">${STATUS_LABEL[status]}</option>`).join('')}`;
+  moduleSelect.value = moduleNames.includes(filterModule) ? filterModule : '';
+  statusSelect.value = STATUS_ORDER.includes(filterStatus) ? filterStatus : '';
+  if(!moduleNames.includes(filterModule)) filterModule = '';
+  if(!STATUS_ORDER.includes(filterStatus)) filterStatus = '';
+}
+
 function renderModuleOptions(selectedName){
   const select = document.getElementById('f_modulo');
   select.innerHTML = modules.map(module => `<option value="${escapeHtml(module.name)}">${escapeHtml(module.name)} (${module.prefix})</option>`).join('');
@@ -644,6 +679,100 @@ async function loadIssues(){
 async function saveIssues(){
   await storageApi.set('issues-list', JSON.stringify(issues));
   document.getElementById('lastUpdate').textContent = 'Última actualización: ' + new Date().toLocaleString('es-CO');
+}
+
+function exportApplicationBackup(){
+  const backup = {
+    format: 'generacion-issues-backup',
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    modules: modules.map(module => ({...module})),
+    issues: issues.map(issue => ({...issue})),
+    images: Object.fromEntries(issues.map(issue => [issue.id, (imagesCache[issue.id] || []).slice()] ))
+  };
+  const blob = new Blob([JSON.stringify(backup, null, 2)], {type:'application/json;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `respaldo-issues-${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function validateApplicationBackup(backup){
+  if(!backup || backup.format !== 'generacion-issues-backup' || backup.version !== 1){
+    throw new Error('El archivo no corresponde a un respaldo válido de esta aplicación.');
+  }
+  if(!Array.isArray(backup.modules) || !backup.modules.length){
+    throw new Error('El respaldo no contiene módulos válidos.');
+  }
+  if(!Array.isArray(backup.issues) || !backup.issues.every(issue => issue && typeof issue === 'object')){
+    throw new Error('El respaldo no contiene una lista válida de issues.');
+  }
+  if(!backup.images || typeof backup.images !== 'object' || Array.isArray(backup.images)){
+    throw new Error('El respaldo no contiene las evidencias en un formato válido.');
+  }
+  const modulesValid = backup.modules.every(module =>
+    module && typeof module.name === 'string' && module.name.trim() && typeof module.prefix === 'string' && module.prefix.trim()
+  );
+  if(!modulesValid) throw new Error('Hay módulos inválidos en el respaldo.');
+
+  const ids = backup.issues.map(issue => issue.id).filter(Boolean);
+  if(ids.length !== backup.issues.length || new Set(ids).size !== ids.length){
+    throw new Error('Hay issues sin identificar o con identificadores repetidos.');
+  }
+}
+
+async function importApplicationBackup(file){
+  if(!file) return;
+  try{
+    const text = await file.text();
+    const backup = JSON.parse(text);
+    validateApplicationBackup(backup);
+    const issueCount = backup.issues.length;
+    const evidenceCount = backup.issues.reduce((sum, issue) => sum + (Array.isArray(backup.images[issue.id]) ? backup.images[issue.id].length : 0), 0);
+    if(!confirm(`Se reemplazarán los datos actuales por ${issueCount} issues y ${evidenceCount} evidencias. ¿Deseas continuar?`)) return;
+
+    const previousIssueIds = issues.map(issue => issue.id).filter(Boolean);
+    for(const id of previousIssueIds){
+      await storageApi.delete(`issue-images:${id}`);
+      await storageApi.delete(`issue-image:${id}`);
+    }
+    await storageApi.set('modules-list', JSON.stringify(backup.modules));
+    await storageApi.set('issues-list', JSON.stringify(backup.issues));
+
+    const restoredImages = {};
+    for(const issue of backup.issues){
+      const evidence = Array.isArray(backup.images[issue.id])
+        ? backup.images[issue.id].filter(value => typeof value === 'string' && value.startsWith('data:image/')).slice(0, MAX_IMAGES_PER_ISSUE)
+        : [];
+      restoredImages[issue.id] = evidence;
+      if(evidence.length){
+        await storageApi.set(`issue-images:${issue.id}`, JSON.stringify(evidence));
+      }else{
+        await storageApi.delete(`issue-images:${issue.id}`);
+        await storageApi.delete(`issue-image:${issue.id}`);
+      }
+    }
+
+    modules = backup.modules.map(module => ({...module}));
+    issues = backup.issues.map(issue => ({...issue}));
+    imagesCache = restoredImages;
+    filterModule = '';
+    filterStatus = '';
+    renderModuleOptions(modules[0] && modules[0].name);
+    renderModules();
+    render();
+    document.getElementById('lastUpdate').textContent = 'Última actualización: ' + new Date().toLocaleString('es-CO');
+    alert(`Importación completada: ${issueCount} issues y ${evidenceCount} evidencias restauradas.`);
+  }catch(error){
+    console.error('Error importando respaldo:', error);
+    alert(error.message || 'No se pudo importar el archivo de respaldo.');
+  }finally{
+    document.getElementById('backupFile').value = '';
+  }
 }
 
 const excelCrcTable = (() => {
@@ -940,9 +1069,11 @@ function renderUploadPreview(){
   const wrap = document.getElementById('uploadPreviewWrap');
   const zoneWrap = document.getElementById('uploadZoneWrap');
   const captureButton = document.getElementById('btnCaptureScreen');
+  const pasteButton = document.getElementById('btnPasteEvidence');
   if(pendingImages.length){
     zoneWrap.style.display = 'block';
     captureButton.disabled = pendingImages.length >= MAX_IMAGES_PER_ISSUE;
+    pasteButton.disabled = pendingImages.length >= MAX_IMAGES_PER_ISSUE;
     wrap.innerHTML = `<div class="upload-preview"><div class="thumb-stack">${pendingImages.map((src, idx) => `
       <div class="thumb-item">
         <img class="thumb is-large" src="${src}">
@@ -958,6 +1089,7 @@ function renderUploadPreview(){
   } else {
     zoneWrap.style.display = 'block';
     captureButton.disabled = false;
+    pasteButton.disabled = false;
     wrap.innerHTML = '';
   }
 }
@@ -1009,6 +1141,65 @@ document.getElementById('f_image').addEventListener('change', async (e) => {
   } finally {
     e.target.value = '';
   }
+});
+
+async function addPastedEvidence(files){
+  const status = document.getElementById('captureStatus');
+  const imageFiles = Array.from(files || []).filter(file => file && file.type && file.type.startsWith('image/'));
+  if(!imageFiles.length){
+    status.textContent = 'El portapapeles no contiene una imagen. Copia primero una captura.';
+    return false;
+  }
+  if(pendingImages.length + imageFiles.length > MAX_IMAGES_PER_ISSUE){
+    status.textContent = `Solo puedes adjuntar hasta ${MAX_IMAGES_PER_ISSUE} imágenes por issue.`;
+    return false;
+  }
+  try{
+    status.textContent = 'Procesando imagen pegada...';
+    const processed = await Promise.all(imageFiles.map(processImageFile));
+    pendingImages = pendingImages.concat(processed);
+    renderUploadPreview();
+    status.textContent = `${processed.length} imagen${processed.length === 1 ? '' : 'es'} pegada${processed.length === 1 ? '' : 's'} correctamente.`;
+    return true;
+  }catch(error){
+    status.textContent = error.message || 'No se pudo pegar la imagen.';
+    return false;
+  }
+}
+
+async function pasteEvidenceFromClipboard(){
+  const status = document.getElementById('captureStatus');
+  try{
+    if(!navigator.clipboard || !navigator.clipboard.read) throw new Error('no-read-api');
+    const items = await navigator.clipboard.read();
+    const files = [];
+    for(const item of items){
+      const imageType = item.types.find(type => type.startsWith('image/'));
+      if(imageType){
+        const blob = await item.getType(imageType);
+        files.push(new File([blob], `captura-${Date.now()}.${imageType.split('/')[1]}`, {type:imageType}));
+      }
+    }
+    await addPastedEvidence(files);
+  }catch(error){
+    status.textContent = error.message === 'no-read-api'
+      ? 'Usa Ctrl+V sobre este formulario después de copiar la captura.'
+      : 'El navegador bloqueó el portapapeles. Pulsa Ctrl+V para pegar la captura.';
+  }
+}
+
+document.getElementById('btnPasteEvidence').addEventListener('click', pasteEvidenceFromClipboard);
+document.addEventListener('paste', async event => {
+  if(!document.getElementById('overlay').classList.contains('show')) return;
+  const target = event.target;
+  if(target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') && target.type !== 'text') return;
+  const imageFiles = Array.from(event.clipboardData?.items || [])
+    .filter(item => item.kind === 'file' && item.type.startsWith('image/'))
+    .map(item => item.getAsFile())
+    .filter(Boolean);
+  if(!imageFiles.length) return;
+  event.preventDefault();
+  await addPastedEvidence(imageFiles);
 });
 
 function returnCaptureFocus(){
@@ -1222,14 +1413,20 @@ window.addEventListener('message', (event) => {
 });
 
 function render(){
+  renderFilterOptions();
   renderSummary();
   if(currentView === 'table') renderTable(); else renderKanban();
 }
 
 function renderSummary(){
   const counts = {Open:0,Blocked:0,ReadyRetest:0,InProgress:0,Closed:0,ReOpen:0};
-  issues.forEach(i => counts[i.status] = (counts[i.status]||0) + 1);
-  const total = issues.length;
+  const q = document.getElementById('search').value.toLowerCase().trim();
+  const summaryIssues = issues.filter(issue =>
+    (!filterModule || issue.modulo === filterModule) &&
+    (!q || [issue.testid, issue.formulario, issue.obs].some(value => (value || '').toLowerCase().includes(q)))
+  );
+  summaryIssues.forEach(i => counts[i.status] = (counts[i.status]||0) + 1);
+  const total = summaryIssues.length;
   const el = document.getElementById('summary');
   el.innerHTML = STATUS_ORDER.map(s => `
     <div class="sum-cell">
@@ -1244,11 +1441,10 @@ function renderSummary(){
 
 function filtered(){
   const q = document.getElementById('search').value.toLowerCase().trim();
-  if(!q) return issues;
-  return issues.filter(i =>
-    (i.testid||'').toLowerCase().includes(q) ||
-    (i.formulario||'').toLowerCase().includes(q) ||
-    (i.obs||'').toLowerCase().includes(q)
+  return issues.filter(issue =>
+    (!filterModule || issue.modulo === filterModule) &&
+    (!filterStatus || issue.status === filterStatus) &&
+    (!q || [issue.testid, issue.formulario, issue.obs, issue.modulo].some(value => (value || '').toLowerCase().includes(q)))
   );
 }
 
@@ -1263,7 +1459,7 @@ function renderTable(){
     <div class="table-panel">
     <table>
       <thead><tr>
-        <th>Código del caso</th><th>Título del hallazgo</th><th>Descripción del hallazgo</th><th class="thumb-cell">Evidencia</th><th>Severity</th><th>Priority</th><th>Status</th><th>Fecha</th><th></th>
+        <th>Código del caso</th><th>Módulo</th><th>Título del hallazgo</th><th>Descripción del hallazgo</th><th class="thumb-cell">Evidencia</th><th>Severity</th><th>Priority</th><th>Status</th><th>Fecha</th><th></th>
       </tr></thead>
       <tbody>
         ${list.map(i => {
@@ -1271,6 +1467,7 @@ function renderTable(){
           return `
           <tr>
             <td class="testid">${escapeHtml(i.testid)}</td>
+            <td>${escapeHtml(i.modulo)}</td>
             <td>${escapeHtml(i.formulario)}</td>
             <td class="obs">${escapeHtml(i.obs)}</td>
             <td class="thumb-cell">${imgs.length ? `<div class="thumb-stack">${imgs.slice(0, 3).map((src, idx) => `<img class="thumb" src="${src}" onclick="openImage('${i.id}', ${idx})">`).join('')}</div>` : `<div class="no-thumb"></div>`}</td>
@@ -1297,7 +1494,7 @@ function renderKanban(){
   const list = filtered();
   const el = document.getElementById('kanbanView');
   el.innerHTML = `<div class="kanban">
-    ${STATUS_ORDER.map(s => {
+    ${STATUS_ORDER.filter(status => !filterStatus || status === filterStatus).map(s => {
       const items = list.filter(i => i.status === s);
       return `<div class="kcol" data-status="${s}" ondragover="kanbanDragOver(event)" ondragleave="kanbanDragLeave(event)" ondrop="kanbanDrop(event)">
         <div class="kcol-head"><span>${STATUS_LABEL[s]}</span><span class="kcol-count">${items.length}</span></div>
@@ -1372,6 +1569,7 @@ function openNew(){
   document.getElementById('f_novedad_tipo').value = 'Novedad';
   renderTracking();
   renderUploadPreview();
+  document.getElementById('captureStatus').textContent = 'Máx. 5 imágenes · PNG/JPG · o pega una captura con Ctrl+V';
   document.getElementById('overlay').classList.add('show');
 }
 
@@ -1397,6 +1595,7 @@ window.openEdit = function(id, focusTracking=false){
   document.getElementById('btnDelete').style.display = 'inline-block';
   document.getElementById('btnSave').textContent = 'Guardar cambios';
   renderUploadPreview();
+  document.getElementById('captureStatus').textContent = 'Máx. 5 imágenes · PNG/JPG · o pega una captura con Ctrl+V';
   document.getElementById('overlay').classList.add('show');
   if(focusTracking){
     requestAnimationFrame(() => {
@@ -1506,6 +1705,7 @@ document.getElementById('btnAddModule').addEventListener('click', async () => {
   document.getElementById('moduleName').value = '';
   document.getElementById('modulePrefixPreview').textContent = '—';
   renderModules();
+  renderFilterOptions();
 });
 document.getElementById('moduleList').addEventListener('click', async e => {
   const button = e.target.closest('[data-module]');
@@ -1516,6 +1716,8 @@ document.getElementById('moduleList').addEventListener('click', async e => {
   await saveModules();
   renderModuleOptions(modules[0] && modules[0].name);
   renderModules();
+  renderFilterOptions();
+  render();
 });
 document.getElementById('btnAddNovedad').addEventListener('click', addNovedad);
 document.getElementById('btnQuickCommentSave').addEventListener('click', saveQuickComment);
@@ -1635,7 +1837,24 @@ document.getElementById('viewKanbanBtn').addEventListener('click', () => {
   document.getElementById('kanbanView').style.display = 'block';
   render();
 });
+document.getElementById('filterModule').addEventListener('change', event => {
+  filterModule = event.target.value;
+  render();
+});
+document.getElementById('filterStatus').addEventListener('change', event => {
+  filterStatus = event.target.value;
+  render();
+});
+document.getElementById('btnClearFilters').addEventListener('click', () => {
+  filterModule = '';
+  filterStatus = '';
+  document.getElementById('search').value = '';
+  render();
+});
 document.getElementById('search').addEventListener('input', render);
+document.getElementById('btnExportBackup').addEventListener('click', exportApplicationBackup);
+document.getElementById('btnImportBackup').addEventListener('click', () => document.getElementById('backupFile').click());
+document.getElementById('backupFile').addEventListener('change', event => importApplicationBackup(event.target.files && event.target.files[0]));
 document.getElementById('btnExportExcel').addEventListener('click', downloadExcelWorkbook);
 
 const kanbanView = document.getElementById('kanbanView');

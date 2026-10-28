@@ -1,0 +1,59 @@
+- generic [ref=f17e2]:
+  - generic [ref=f17e3]:
+    - generic [ref=f17e4]:
+      - generic [ref=f17e5]: Panamericana · Módulo Activos Fijos
+      - heading "Bitácora de Issues / QA" [level=1] [ref=f17e6]
+      - generic [ref=f17e7]: "Última actualización: 27/10/2026, 8:55:11 p. m."
+    - generic [ref=f17e8]:
+      - button "Descargar Excel" [ref=f17e9] [cursor=pointer]
+      - button "Módulos" [ref=f17e10] [cursor=pointer]
+      - button "+ Registrar issue" [ref=f17e11] [cursor=pointer]
+  - generic [ref=f17e12]:
+    - generic [ref=f17e98]:
+      - generic [ref=f17e99]: "0"
+      - generic [ref=f17e100]: Open
+    - generic [ref=f17e101]:
+      - generic [ref=f17e102]: "0"
+      - generic [ref=f17e103]: Blocked
+    - generic [ref=f17e104]:
+      - generic [ref=f17e105]: "0"
+      - generic [ref=f17e106]: Ready for Retest
+    - generic [ref=f17e107]:
+      - generic [ref=f17e108]: "0"
+      - generic [ref=f17e109]: In Progress
+    - generic [ref=f17e110]:
+      - generic [ref=f17e111]: "1"
+      - generic [ref=f17e112]: Closed
+    - generic [ref=f17e113]:
+      - generic [ref=f17e114]: "0"
+      - generic [ref=f17e115]: Re-Open
+    - generic [ref=f17e116]:
+      - generic [ref=f17e117]: "1"
+      - generic [ref=f17e118]: Total
+  - generic [ref=f17e13]:
+    - generic [ref=f17e14]:
+      - button "Tabla" [ref=f17e15] [cursor=pointer]
+      - button "Kanban" [active] [ref=f17e16] [cursor=pointer]
+    - generic [ref=f17e17]:
+      - combobox "Filtrar por módulo" [ref=f17e18]:
+        - option "Todos los módulos"
+        - option "Activos fijos"
+        - option "Contabilidad" [selected]
+      - combobox "Filtrar por status" [ref=f17e19]:
+        - option "Todos los estados"
+        - option "Open"
+        - option "Blocked"
+        - option "Ready for Retest"
+        - option "In Progress"
+        - option "Closed" [selected]
+        - option "Re-Open"
+      - button "Limpiar" [ref=f17e20] [cursor=pointer]
+    - textbox "Buscar por código del caso, título del hallazgo u observación..." [ref=f17e21]
+  - generic [ref=f17e121]:
+    - generic [ref=f17e122]:
+      - generic [ref=f17e123]: Closed
+      - generic [ref=f17e124]: "1"
+    - generic [ref=f17e126]:
+      - generic [ref=f17e127]: CON-001
+      - generic [ref=f17e128]: Cierre cerrado
+  - generic [ref=f17e22]: Datos visibles para cualquier persona con este enlace · Actualización en tiempo real
