@@ -92,7 +92,7 @@ class Handler(SimpleHTTPRequestHandler):
             payload = json.loads(self.rfile.read(length).decode('utf-8'))
             issues = payload.get('issues', [])
             images = payload.get('images', {})
-            output = self.build_excel(issues, images, payload.get('scope', ''))
+            output = self.build_excel(issues, images, payload.get('scope', ''), payload.get('ageLimitDays', 7))
         except Exception as exc:
             self.send_json({'error': f'No se pudo generar el Excel: {exc}'}, status=500)
             return
@@ -106,7 +106,14 @@ class Handler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def build_excel(self, issues, images, scope=''):
+    def build_excel(self, issues, images, scope='', age_limit_days=7):
+        try:
+            age_limit_days = int(age_limit_days)
+        except (TypeError, ValueError):
+            age_limit_days = 7
+        if not 1 <= age_limit_days <= 3650:
+            age_limit_days = 7
+
         workbook = Workbook()
         sheet = workbook.active
         sheet.title = 'Bitácora'
@@ -165,6 +172,9 @@ class Handler(SimpleHTTPRequestHandler):
                 cell.font = body_font
                 cell.alignment = Alignment(vertical='top', wrap_text=True)
                 cell.border = thin_border
+            if status != 'Closed' and age is not None and age > age_limit_days:
+                sheet.cell(issue_index, 10).fill = PatternFill('solid', fgColor='FFFFD9D6')
+                sheet.cell(issue_index, 10).font = Font(name='Arial', size=10, bold=True, color='FF9C1C16')
             for column in (9, 11, 12):
                 sheet.cell(issue_index, column).number_format = 'dd/mm/yyyy'
 
@@ -181,7 +191,7 @@ class Handler(SimpleHTTPRequestHandler):
         metrics = workbook.create_sheet('Resumen')
         metrics.sheet_view.showGridLines = False
         metrics.freeze_panes = 'A5'
-        self.populate_metrics(metrics, issues, images, scope, status_labels)
+        self.populate_metrics(metrics, issues, images, scope, status_labels, age_limit_days)
 
         output = io.BytesIO()
         workbook.save(output)
@@ -231,7 +241,7 @@ class Handler(SimpleHTTPRequestHandler):
         image.height = 82
         return image
 
-    def populate_metrics(self, metrics, issues, images, scope, status_labels):
+    def populate_metrics(self, metrics, issues, images, scope, status_labels, age_limit_days):
         total = len(issues)
         closed_issues = [issue for issue in issues if issue.get('status') == 'Closed']
         open_issues = [issue for issue in issues if issue.get('status') != 'Closed']
@@ -246,9 +256,16 @@ class Handler(SimpleHTTPRequestHandler):
         modules = sorted({str(issue.get('modulo') or 'Sin definir') for issue in issues}, key=str.lower)
         owners = sorted({str(issue.get('assigned') or 'Sin asignar') for issue in issues}, key=str.lower)
         evidence_count = sum(len(images.get(str(issue.get('id')), [])) for issue in issues)
+        overdue_count = 0
+        for issue in open_issues:
+            created = self.parse_report_date(issue.get('fecha') or issue.get('createdAt'))
+            if created and (date.today() - created).days > age_limit_days:
+                overdue_count += 1
 
         metrics.append(['Resumen de issues / Bitácora QA'])
         metrics.append([f'Alcance: {total} issues (según los filtros aplicados) · {scope or "Todos los registros"} · {date.today().strftime("%d/%m/%Y")}'])
+        alert_label = 'alerta' if overdue_count == 1 else 'alertas'
+        metrics.append([f'Alerta de antigüedad: issue abierto con más de {age_limit_days} días · {overdue_count} {alert_label}'])
         metrics.append([])
 
         def add_section(title, headers, rows, percentage_columns=()):
@@ -330,6 +347,8 @@ class Handler(SimpleHTTPRequestHandler):
             ['Antigüedad promedio de issues abiertos (días)', sum(open_ages) / len(open_ages) if open_ages else 'Sin datos'],
             ['Issue abierto más antiguo (días)', max(open_ages) if open_ages else 'Sin datos'],
             ['Issues abiertos sin responsable', sum(not issue.get('assigned') for issue in open_issues)],
+            ['Límite de antigüedad de issues abiertos (días)', age_limit_days],
+            ['Issues abiertos que superan el límite', overdue_count],
             ['Issues en estado Re-Open', reopened],
             ['Tasa de reapertura (%)', reopened / total if total else 0]
         ]

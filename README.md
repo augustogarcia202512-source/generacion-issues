@@ -10,6 +10,7 @@
 
 Pillow permite insertar las evidencias como imágenes en el archivo Excel generado por el servidor local.
 En GitHub Pages, el Excel se genera directamente en el navegador; ambos modos respetan los filtros activos y crean las hojas `Bitácora` y `Resumen`.
+La tabla muestra la antigüedad de cada issue abierto y alerta cuando supera el límite configurable (7 días de forma predeterminada).
 
 ## Publicar en GitHub Pages
 

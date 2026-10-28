@@ -137,6 +137,26 @@ border-radius:3px; font-family:'Inter',sans-serif; font-size:12.5px;
   padding: 9px 14px; border-radius:3px; font-family:'Inter',sans-serif; font-size:13px; min-width:220px;
 }
 .filter-search:focus-visible{ outline:2px solid var(--amber); }
+.age-alert-setting{
+  display:flex; align-items:center; gap:9px; margin:-4px 0 16px; padding:10px 12px;
+  border:1px solid rgba(226,87,76,.28); border-left:3px solid var(--open); background:rgba(226,87,76,.045);
+  color:#9fb0bf; font:700 10px 'JetBrains Mono',monospace; letter-spacing:.8px; text-transform:uppercase;
+}
+.age-alert-setting input{
+  width:58px; height:30px; padding:4px 7px; background:var(--panel); border:1px solid var(--line);
+  border-radius:3px; color:var(--text); font:700 13px 'Inter',sans-serif;
+}
+.age-alert-setting input:focus-visible{ outline:2px solid var(--amber); }
+.age-alert-count{ margin-left:auto; color:var(--text-dim); text-align:right; }
+.age-alert-count.has-alerts{ color:#ff8177; }
+.age-cell{ min-width:112px; white-space:nowrap; }
+.age-warning{
+  display:inline-flex; flex-direction:column; gap:4px; padding:8px 10px;
+  border:1px solid rgba(226,87,76,.42); border-radius:3px; background:rgba(226,87,76,.12);
+  color:#ff8b82; font:700 11px 'JetBrains Mono',monospace; white-space:nowrap;
+}
+.age-warning span{ font-size:9px; letter-spacing:.5px; }
+.age-ok{ color:var(--text-dim); font:11px 'JetBrains Mono',monospace; white-space:nowrap; }
 
 /* Status badge */
 .badge{
@@ -341,6 +361,12 @@ tr:hover td{ background: rgba(232,163,61,0.04); }
     </div>
     <input class="filter-search" id="search" placeholder="Buscar por código del caso, título del hallazgo u observación...">
   </div>
+  <div class="age-alert-setting">
+    <label for="ageLimitDays">Alerta si un issue abierto supera</label>
+    <input id="ageLimitDays" type="number" min="1" max="3650" step="1" value="7" aria-label="Días límite de antigüedad">
+    <span>días</span>
+    <span class="age-alert-count" id="ageAlertCount" aria-live="polite"></span>
+  </div>
 
   <div id="tableView"></div>
   <div id="kanbanView" style="display:none;"></div>
@@ -515,6 +541,7 @@ let editingId = null;
 let currentView = 'table';
 let filterModule = '';
 let filterStatus = '';
+let ageLimitDays = 7;
 let pendingImages = [];
 let pendingNovedades = [];
 let quickCommentIssueId = null;
@@ -663,6 +690,33 @@ async function loadModules(){
   renderModuleOptions();
 }
 
+function normalizeAgeLimit(value){
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed >= 1 && parsed <= 3650 ? parsed : 7;
+}
+
+async function loadAgeLimit(){
+  const result = await storageApi.get('issue-age-limit-days');
+  ageLimitDays = normalizeAgeLimit(result && result.value);
+  document.getElementById('ageLimitDays').value = ageLimitDays;
+  render();
+}
+
+async function saveAgeLimit(){
+  const input = document.getElementById('ageLimitDays');
+  const requestedValue = Number(input.value);
+  if(!Number.isInteger(requestedValue) || requestedValue < 1 || requestedValue > 3650){
+    input.value = ageLimitDays;
+    alert('Ingresa un número entero entre 1 y 3650 días.');
+    return;
+  }
+  ageLimitDays = requestedValue;
+  input.value = ageLimitDays;
+  const saved = await storageApi.set('issue-age-limit-days', String(ageLimitDays));
+  if(!saved) alert('No se pudo guardar el límite de antigüedad en este navegador.');
+  render();
+}
+
 async function loadIssues(){
   try{
     const res = await storageApi.get('issues-list');
@@ -687,7 +741,8 @@ function exportApplicationBackup(){
     exportedAt: new Date().toISOString(),
     modules: modules.map(module => ({...module})),
     issues: issues.map(issue => ({...issue})),
-    images: Object.fromEntries(issues.map(issue => [issue.id, (imagesCache[issue.id] || []).slice()] ))
+    images: Object.fromEntries(issues.map(issue => [issue.id, (imagesCache[issue.id] || []).slice()] )),
+    settings: { ageLimitDays }
   };
   const blob = new Blob([JSON.stringify(backup, null, 2)], {type:'application/json;charset=utf-8'});
   const url = URL.createObjectURL(blob);
@@ -759,6 +814,9 @@ async function importApplicationBackup(file){
     modules = backup.modules.map(module => ({...module}));
     issues = backup.issues.map(issue => ({...issue}));
     imagesCache = restoredImages;
+    ageLimitDays = normalizeAgeLimit(backup.settings && backup.settings.ageLimitDays);
+    document.getElementById('ageLimitDays').value = ageLimitDays;
+    await storageApi.set('issue-age-limit-days', String(ageLimitDays));
     filterModule = '';
     filterStatus = '';
     renderModuleOptions(modules[0] && modules[0].name);
@@ -867,6 +925,19 @@ function excelReportDateText(value){
   return date ? new Intl.DateTimeFormat('es-CO').format(date) : '';
 }
 
+function issueAgeDays(issue, today = new Date()){
+  const created = excelReportDate(issue.fecha || issue.createdAt);
+  if(!created) return null;
+  let endDate = today;
+  if(issue.status === 'Closed'){
+    endDate = excelReportSolutionDate(issue);
+    if(!endDate) return null;
+  }
+  const createdDay = new Date(created.getFullYear(), created.getMonth(), created.getDate());
+  const endDay = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
+  return Math.max(0, Math.floor((endDay - createdDay) / 86400000));
+}
+
 function excelReportSolutionDate(issue){
   const solutions = (issue.novedades || [])
     .filter(item => item && typeof item === 'object' && item.type === 'Solución')
@@ -912,10 +983,8 @@ async function downloadExcelWorkbookClient(exportIssues = filtered(), scope = ''
         .map(item => excelReportDate(typeof item === 'string' ? null : item && (item.createdAt || item.date)))
         .filter(Boolean)
         .sort((a, b) => b - a)[0] || null;
-      const ageEndDate = issue.status === 'Closed' ? solutionDate : new Date();
-      const age = created && ageEndDate
-        ? Math.max(0, Math.floor((ageEndDate - created) / 86400000))
-        : '';
+      const age = issueAgeDays(issue);
+      const ageStyle = issue.status !== 'Closed' && age !== null && age > ageLimitDays ? 7 : 2;
       const issueImages = (imagesCache[issue.id] || []).slice(0, MAX_IMAGES_PER_ISSUE);
       const trace = (issue.novedades || []).map(item => {
         if(typeof item === 'string') return item;
@@ -929,7 +998,9 @@ async function downloadExcelWorkbookClient(exportIssues = filtered(), scope = ''
         trace, issueImages.length, '', '', '', '', ''
       ];
       const rowNumber = issueIndex + 2;
-      const cells = values.map((value, column) => excelReportXmlCell(`${excelReportColumn(column + 1)}${rowNumber}`, value, 2)).join('');
+      const cells = values.map((value, column) => excelReportXmlCell(
+        `${excelReportColumn(column + 1)}${rowNumber}`, value, column === 9 ? ageStyle : 2
+      )).join('');
       sheetRows.push(`<row r="${rowNumber}" ht="98" customHeight="1">${cells}</row>`);
 
       issueImages.forEach((dataUrl, imageIndex) => {
@@ -1025,6 +1096,10 @@ async function downloadExcelWorkbookClient(exportIssues = filtered(), scope = ''
       return created && closed ? Math.max(0, Math.floor((closed - created) / 86400000)) : null;
     }).filter(value => value !== null);
     const reopened = exportIssues.filter(issue => issue.status === 'ReOpen').length;
+    const overdueCount = openIssues.filter(issue => {
+      const age = issueAgeDays(issue);
+      return age !== null && age > ageLimitDays;
+    }).length;
     const summaryRows = [];
     let summaryRow = 1;
     const summaryLine = (values, style, height) => {
@@ -1049,6 +1124,7 @@ async function downloadExcelWorkbookClient(exportIssues = filtered(), scope = ''
     };
     summaryLine([['Resumen de issues / Bitácora QA', 6], '', '', ''], 6, 30);
     summaryLine([`Alcance: ${total} issues (según los filtros aplicados) · ${scope || 'Todos los registros'} · ${excelReportDateText(today)}`, '', '', ''], 2, 22);
+    summaryLine([`Alerta de antigüedad: issue abierto con más de ${ageLimitDays} días · ${overdueCount} ${overdueCount === 1 ? 'alerta' : 'alertas'}`, '', '', ''], 2, 22);
     summaryRow++;
     addSection('Issues por estado', ['Estado','Cantidad','% del total',''], statusRows);
     addSection('Issues por severidad', ['Severidad','Abiertos','Cerrados','Total'], severityRows);
@@ -1065,6 +1141,8 @@ async function downloadExcelWorkbookClient(exportIssues = filtered(), scope = ''
       ['Antigüedad promedio de issues abiertos (días)', openAges.length ? openAges.reduce((a,b) => a + b, 0) / openAges.length : 'Sin datos'],
       ['Issue abierto más antiguo (días)', openAges.length ? Math.max(...openAges) : 'Sin datos'],
       ['Issues abiertos sin responsable', openIssues.filter(issue => !issue.assigned).length],
+      ['Límite de antigüedad de issues abiertos (días)', ageLimitDays],
+      ['Issues abiertos que superan el límite', overdueCount],
       ['Issues en estado Re-Open', reopened],
       ['Tasa de reapertura (%)', [total ? reopened / total : 0, 5]]
     ].map(row => [row[0], row[1], '', '']);
@@ -1077,7 +1155,7 @@ async function downloadExcelWorkbookClient(exportIssues = filtered(), scope = ''
     const drawingRelationships = media.map((item, index) => `<Relationship Id="rId${index + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/${item.name.split('/').pop()}"/>`).join('');
 
     const workbookXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Bitácora" sheetId="1" r:id="rId1"/><sheet name="Resumen" sheetId="2" r:id="rId3"/></sheets></workbook>`;
-    const stylesXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="4"><font><sz val="10"/><name val="Arial"/></font><font><b/><color rgb="FFFFFFFF"/><sz val="10"/><name val="Arial"/></font><font><b/><color rgb="FFFFFFFF"/><sz val="14"/><name val="Arial"/></font><font><b/><sz val="10"/><name val="Arial"/></font></fonts><fills count="4"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF1F3A5F"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFEAF0F6"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="2"><border/><border><left style="thin"><color rgb="FFD4DEE7"/></left><right style="thin"><color rgb="FFD4DEE7"/></right><top style="thin"><color rgb="FFD4DEE7"/></top><bottom style="thin"><color rgb="FFD4DEE7"/></bottom></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="7"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf><xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf><xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf><xf numFmtId="0" fontId="3" fillId="3" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf><xf numFmtId="10" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf><xf numFmtId="0" fontId="2" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="center"/></xf></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`;
+    const stylesXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="5"><font><sz val="10"/><name val="Arial"/></font><font><b/><color rgb="FFFFFFFF"/><sz val="10"/><name val="Arial"/></font><font><b/><color rgb="FFFFFFFF"/><sz val="14"/><name val="Arial"/></font><font><b/><sz val="10"/><name val="Arial"/></font><font><b/><color rgb="FF9C1C16"/><sz val="10"/><name val="Arial"/></font></fonts><fills count="5"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF1F3A5F"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFEAF0F6"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFFFD9D6"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="2"><border/><border><left style="thin"><color rgb="FFD4DEE7"/></left><right style="thin"><color rgb="FFD4DEE7"/></right><top style="thin"><color rgb="FFD4DEE7"/></top><bottom style="thin"><color rgb="FFD4DEE7"/></bottom></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="8"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf><xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf><xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf><xf numFmtId="0" fontId="3" fillId="3" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf><xf numFmtId="10" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf><xf numFmtId="0" fontId="2" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="center"/></xf><xf numFmtId="0" fontId="4" fillId="4" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`;
     const entries = [
       {name:'[Content_Types].xml', data:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Default Extension="jpg" ContentType="image/jpeg"/><Default Extension="jpeg" ContentType="image/jpeg"/><Default Extension="gif" ContentType="image/gif"/><Default Extension="bmp" ContentType="image/bmp"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/><Override PartName="/xl/drawings/drawing1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/></Types>'},
       {name:'_rels/.rels', data:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>'},
@@ -1127,7 +1205,7 @@ async function downloadExcelWorkbook(){
     const response = await fetch('/api/export-excel', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({issues: exportIssues, images: imagesCache, scope})
+      body: JSON.stringify({issues: exportIssues, images: imagesCache, scope, ageLimitDays})
     });
     if(response.status === 404 || response.status === 405){
       await downloadExcelWorkbookClient(exportIssues, scope);
@@ -1547,7 +1625,20 @@ window.addEventListener('message', (event) => {
 function render(){
   renderFilterOptions();
   renderSummary();
+  renderAgeAlert();
   if(currentView === 'table') renderTable(); else renderKanban();
+}
+
+function renderAgeAlert(){
+  const alertCount = filtered().filter(issue => {
+    const age = issueAgeDays(issue);
+    return issue.status !== 'Closed' && age !== null && age > ageLimitDays;
+  }).length;
+  const element = document.getElementById('ageAlertCount');
+  element.textContent = alertCount
+    ? `Issues visibles con alerta: ${alertCount}`
+    : 'Sin issues vencidos';
+  element.classList.toggle('has-alerts', alertCount > 0);
 }
 
 function renderSummary(){
@@ -1591,11 +1682,13 @@ function renderTable(){
     <div class="table-panel">
     <table>
       <thead><tr>
-        <th>Código del caso</th><th>Módulo</th><th>Título del hallazgo</th><th>Descripción del hallazgo</th><th class="thumb-cell">Evidencia</th><th>Severity</th><th>Priority</th><th>Status</th><th>Fecha</th><th></th>
+        <th>Código del caso</th><th>Módulo</th><th>Título del hallazgo</th><th>Descripción del hallazgo</th><th class="thumb-cell">Evidencia</th><th>Severity</th><th>Priority</th><th>Status</th><th>Fecha</th><th class="age-cell">Antigüedad</th><th></th>
       </tr></thead>
       <tbody>
         ${list.map(i => {
           const imgs = imagesCache[i.id] || [];
+          const age = issueAgeDays(i);
+          const overdue = i.status !== 'Closed' && age !== null && age > ageLimitDays;
           return `
           <tr>
             <td class="testid">${escapeHtml(i.testid)}</td>
@@ -1607,6 +1700,11 @@ function renderTable(){
             <td>${escapeHtml(i.priority)}</td>
             <td><span class="badge ${i.status}">${STATUS_LABEL[i.status]}</span></td>
             <td class="testid">${escapeHtml(i.fecha)}</td>
+            <td class="age-cell">${age === null
+              ? '<span class="age-ok">—</span>'
+              : overdue
+                ? `<span class="age-warning" title="Issue abierto con más de ${ageLimitDays} días">${age} días<span>ALERTA · +${age - ageLimitDays} ${age - ageLimitDays === 1 ? 'DÍA' : 'DÍAS'}</span></span>`
+                : `<span class="age-ok">${age} ${age === 1 ? 'día' : 'días'}</span>`}</td>
             <td><div class="row-actions">
               <button onclick="openEdit('${i.id}')">Editar</button>
               <button class="icon-action" onclick="openQuickComment('${i.id}')" title="Agregar comentario" aria-label="Agregar comentario al issue ${escapeHtml(i.testid)}">
@@ -1984,6 +2082,7 @@ document.getElementById('btnClearFilters').addEventListener('click', () => {
   render();
 });
 document.getElementById('search').addEventListener('input', render);
+document.getElementById('ageLimitDays').addEventListener('change', saveAgeLimit);
 document.getElementById('btnExportBackup').addEventListener('click', exportApplicationBackup);
 document.getElementById('btnImportBackup').addEventListener('click', () => document.getElementById('backupFile').click());
 document.getElementById('backupFile').addEventListener('change', event => importApplicationBackup(event.target.files && event.target.files[0]));
@@ -2045,7 +2144,7 @@ window.kanbanDrop = async function(event){
   }
 };
 
-Promise.all([loadModules(), loadIssues()]);
+Promise.all([loadModules(), loadIssues(), loadAgeLimit()]);
 </script>
 </body>
 </html>
