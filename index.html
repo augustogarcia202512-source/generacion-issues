@@ -794,10 +794,6 @@ function excelXmlText(value){
   return String(value ?? '').replace(/[&<>]/g, char => ({'&':'&amp;', '<':'&lt;', '>':'&gt;'}[char])).replace(/"/g, '&quot;');
 }
 
-function excelInlineCell(value, styleId = 0){
-  return `<c r="{cellRef}" s="${styleId}" t="inlineStr"><is><t xml:space="preserve">${excelXmlText(value)}</t></is></c>`;
-}
-
 function excelDataUrlBytes(dataUrl){
   const match = /^data:image\/([^;,]+);base64,(.+)$/i.exec(dataUrl || '');
   if(!match) return null;
@@ -848,46 +844,109 @@ function excelCreateZip(entries){
   return new Blob([...localParts, ...centralParts, end], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
 }
 
-async function downloadExcelWorkbookLegacy(){
+function excelReportDate(value){
+  if(!value) return null;
+  if(value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+  const text = String(value).trim();
+  const localDate = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(text);
+  if(localDate){
+    const parsed = new Date(Number(localDate[3]), Number(localDate[2]) - 1, Number(localDate[1]));
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+  const isoDate = /^(\d{4})-(\d{2})-(\d{2})/.exec(text);
+  if(isoDate){
+    const parsed = new Date(Number(isoDate[1]), Number(isoDate[2]) - 1, Number(isoDate[3]));
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+  const parsed = new Date(text);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function excelReportDateText(value){
+  const date = excelReportDate(value);
+  return date ? new Intl.DateTimeFormat('es-CO').format(date) : '';
+}
+
+function excelReportSolutionDate(issue){
+  const solutions = (issue.novedades || [])
+    .filter(item => item && typeof item === 'object' && item.type === 'Solución')
+    .map(item => excelReportDate(item.createdAt || item.date))
+    .filter(Boolean)
+    .sort((a, b) => b - a);
+  return solutions[0] || null;
+}
+
+function excelReportXmlCell(reference, value, style = 2){
+  if(typeof value === 'number' && Number.isFinite(value)){
+    return `<c r="${reference}" s="${style}"><v>${value}</v></c>`;
+  }
+  return `<c r="${reference}" s="${style}" t="inlineStr"><is><t xml:space="preserve">${excelXmlText(value)}</t></is></c>`;
+}
+
+function excelReportColumn(index){
+  let column = '';
+  while(index > 0){
+    const remainder = (index - 1) % 26;
+    column = String.fromCharCode(65 + remainder) + column;
+    index = Math.floor((index - 1) / 26);
+  }
+  return column;
+}
+
+async function downloadExcelWorkbookClient(exportIssues = filtered(), scope = ''){
   const button = document.getElementById('btnExportExcel');
   const originalText = button.textContent;
   button.disabled = true;
-  button.textContent = 'Preparando...';
+  button.textContent = 'Preparando Excel...';
   try{
-    const headers = ['Código del caso','Módulo afectado','Título del hallazgo','Descripción del hallazgo','Estado','Severity','Priority','Asignado a','Fecha de creación','Evidencia 1','Evidencia 2','Evidencia 3','Evidencia 4','Evidencia 5','Trazabilidad'];
+    const headers = ['Test ID','Título del hallazgo','Módulo','Descripción del hallazgo','Estado','Severidad','Prioridad','Asignado a','Fecha registro','Antigüedad (días)','Fecha cierre','Última actualización','Comentarios / trazabilidad','Imágenes','Evidencia 1','Evidencia 2','Evidencia 3','Evidencia 4','Evidencia 5'];
     const media = [];
     const drawingParts = [];
-    const rows = headers.map((header, column) => excelInlineCell(header, 3).replace('{cellRef}', `${String.fromCharCode(65 + column)}1`)).join('');
-    const sheetRows = [`<row r="1" ht="28" customHeight="1">${rows}</row>`];
+    const sheetRows = [];
+    sheetRows.push(`<row r="1" ht="26" customHeight="1">${headers.map((header, column) => excelReportXmlCell(`${excelReportColumn(column + 1)}1`, header, 1)).join('')}</row>`);
 
-    issues.forEach((issue, issueIndex) => {
+    exportIssues.forEach((issue, issueIndex) => {
+      const created = excelReportDate(issue.fecha || issue.createdAt);
+      const solutionDate = excelReportSolutionDate(issue);
+      const latestUpdate = (issue.novedades || [])
+        .map(item => excelReportDate(typeof item === 'string' ? null : item && (item.createdAt || item.date)))
+        .filter(Boolean)
+        .sort((a, b) => b - a)[0] || null;
+      const ageEndDate = issue.status === 'Closed' ? solutionDate : new Date();
+      const age = created && ageEndDate
+        ? Math.max(0, Math.floor((ageEndDate - created) / 86400000))
+        : '';
+      const issueImages = (imagesCache[issue.id] || []).slice(0, MAX_IMAGES_PER_ISSUE);
+      const trace = (issue.novedades || []).map(item => {
+        if(typeof item === 'string') return item;
+        return `[${excelReportDateText(item.createdAt || item.date) || 'Sin fecha'}] ${item.type || 'Novedad'}: ${item.text || ''}`;
+      }).join('\n\n');
       const values = [
-        issue.testid, issue.modulo, issue.formulario, issue.obs, issue.status,
-        issue.severity, issue.priority, issue.assigned || '', issue.createdAt,
-        '', '', '', '', '',
-        (issue.novedades || []).map(item => `${item.type || 'Novedad'} — ${item.date || ''}\n${item.text || ''}`).join('\n\n')
+        issue.testid || '', issue.formulario || '', issue.modulo || '', issue.obs || '',
+        STATUS_LABEL[issue.status] || issue.status || '', issue.severity || '',
+        issue.priority || '', issue.assigned || '', excelReportDateText(created),
+        age, excelReportDateText(solutionDate), excelReportDateText(latestUpdate),
+        trace, issueImages.length, '', '', '', '', ''
       ];
       const rowNumber = issueIndex + 2;
-      const cells = values.map((value, column) => excelInlineCell(value, column >= 9 && column <= 13 ? 2 : 0).replace('{cellRef}', `${String.fromCharCode(65 + column)}${rowNumber}`)).join('');
-      sheetRows.push(`<row r="${rowNumber}" ht="95" customHeight="1">${cells}</row>`);
+      const cells = values.map((value, column) => excelReportXmlCell(`${excelReportColumn(column + 1)}${rowNumber}`, value, 2)).join('');
+      sheetRows.push(`<row r="${rowNumber}" ht="98" customHeight="1">${cells}</row>`);
 
-      const images = (imagesCache[issue.id] || []).slice(0, 5);
-      images.forEach((dataUrl, imageIndex) => {
+      issueImages.forEach((dataUrl, imageIndex) => {
         const image = excelDataUrlBytes(dataUrl);
         if(!image) return;
         const extension = ['png','jpg','jpeg','gif','bmp'].includes(image.extension) ? image.extension : 'png';
         const mediaName = `image${media.length + 1}.${extension}`;
         const relationshipId = `rId${media.length + 1}`;
         media.push({name:`xl/media/${mediaName}`, data:image.bytes});
-        const col = 9 + imageIndex;
-        const cell = String.fromCharCode(65 + col);
+        const col = 14 + imageIndex;
         const shapeId = media.length + 1;
         drawingParts.push(`
           <xdr:twoCellAnchor editAs="oneCell">
             <xdr:from><xdr:col>${col}</xdr:col><xdr:colOff>7000</xdr:colOff><xdr:row>${issueIndex + 1}</xdr:row><xdr:rowOff>7000</xdr:rowOff></xdr:from>
             <xdr:to><xdr:col>${col + 1}</xdr:col><xdr:colOff>7000</xdr:colOff><xdr:row>${issueIndex + 2}</xdr:row><xdr:rowOff>7000</xdr:rowOff></xdr:to>
             <xdr:pic>
-              <xdr:nvPicPr><xdr:cNvPr id="${shapeId}" name="Evidencia ${imageIndex + 1} - ${excelXmlText(issue.testid || issue.id)}"/><xdr:cNvPicPr/></xdr:nvPicPr>
+              <xdr:nvPicPr><xdr:cNvPr id="${shapeId}" name="Evidencia ${imageIndex + 1} - ${excelXmlText(issue.testid || issue.id)}"/><xdr:cNvPicPr><a:picLocks noChangeAspect="1"/></xdr:cNvPicPr></xdr:nvPicPr>
               <xdr:blipFill><a:blip r:embed="${relationshipId}"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill>
               <xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="914400" cy="914400"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr>
             </xdr:pic>
@@ -896,67 +955,129 @@ async function downloadExcelWorkbookLegacy(){
       });
     });
 
-    const sheetXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><cols><col min="1" max="1" width="18" customWidth="1"/><col min="2" max="4" width="24" customWidth="1"/><col min="5" max="8" width="16" customWidth="1"/><col min="10" max="14" width="18" customWidth="1"/><col min="15" max="15" width="42" customWidth="1"/></cols><sheetData>${sheetRows.join('')}</sheetData><drawing r:id="rId1"/></worksheet>`;
+    const widthMap = [14,30,22,44,18,14,14,22,16,16,16,18,46,12,24,24,24,24,24];
+    const colsXml = widthMap.map((width, index) => `<col min="${index + 1}" max="${index + 1}" width="${width}" customWidth="1"/>`).join('');
+    const sheetXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheetViews><sheetView showGridLines="0" workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols>${colsXml}</cols><sheetData>${sheetRows.join('')}</sheetData><autoFilter ref="A1:S${exportIssues.length + 1}"/><drawing r:id="rId1"/></worksheet>`;
 
-    const countBy = field => issues.reduce((counts, issue) => {
+    const countBy = (field, items = exportIssues) => items.reduce((counts, issue) => {
       const key = String(issue[field] || 'Sin definir');
       counts.set(key, (counts.get(key) || 0) + 1);
       return counts;
     }, new Map());
+    const isClosed = issue => issue.status === 'Closed';
+    const total = exportIssues.length;
+    const closedIssues = exportIssues.filter(isClosed);
+    const openIssues = exportIssues.filter(issue => !isClosed(issue));
     const statusCounts = countBy('status');
-    const severityCounts = countBy('severity');
-    const moduleCounts = countBy('modulo');
-    const evidenceCount = issues.reduce((sum, issue) => sum + (imagesCache[issue.id] || []).length, 0);
-    const closedCount = statusCounts.get('Closed') || 0;
-    const closedPercent = issues.length ? Math.round(closedCount * 100 / issues.length) : 0;
-    const generalMetrics = [
-      ['Total de issues', issues.length],
-      ['Issues cerrados', closedCount],
-      ['Issues abiertos', issues.length - closedCount],
-      ['Porcentaje cerrado', `${closedPercent}%`],
-      ['Evidencias adjuntas', evidenceCount]
-    ];
-    const metricSections = [
-      {title:'Por estado', startColumn:'D', counts:statusCounts},
-      {title:'Por severidad', startColumn:'G', counts:severityCounts},
-      {title:'Por módulo', startColumn:'J', counts:moduleCounts}
-    ];
-    const metricCell = (reference, value, style) => `<c r="${reference}" s="${style}" t="inlineStr"><is><t xml:space="preserve">${excelXmlText(value)}</t></is></c>`;
-    const metricRows = [];
-    const titleCells = metricSections.map((section, index) => metricCell(`${section.startColumn}1`, section.title, 4));
-    metricRows.push(`<row r="1" ht="26" customHeight="1">${metricCell('A1', 'Resumen general', 4)}${titleCells.join('')}</row>`);
-    const headerCells = [metricCell('A2', 'Indicador', 5), metricCell('B2', 'Valor', 5)];
-    metricSections.forEach(section => {
-      const start = section.startColumn.charCodeAt(0);
-      headerCells.push(metricCell(`${String.fromCharCode(start)}2`, 'Categoría', 5));
-      headerCells.push(metricCell(`${String.fromCharCode(start + 1)}2`, 'Cantidad', 5));
+    const severityValues = [...new Set(['Alta','Media','Baja', ...exportIssues.map(issue => issue.severity).filter(Boolean)])];
+    const severityOrder = ['Critical','Crítica','Alta','High','Media','Medium','Baja','Low'];
+    severityValues.sort((a, b) => {
+      const ai = severityOrder.indexOf(a), bi = severityOrder.indexOf(b);
+      if(ai >= 0 || bi >= 0) return (ai < 0 ? severityOrder.length : ai) - (bi < 0 ? severityOrder.length : bi);
+      return a.localeCompare(b);
     });
-    metricRows.push(`<row r="2">${headerCells.join('')}</row>`);
-    const maxRows = Math.max(generalMetrics.length, ...metricSections.map(section => section.counts.size));
-    for(let index = 0; index < maxRows; index++){
-      const rowNumber = index + 3;
-      const rowCells = [];
-      const general = generalMetrics[index];
-      if(general){
-        rowCells.push(metricCell(`A${rowNumber}`, general[0], 6));
-        rowCells.push(metricCell(`B${rowNumber}`, general[1], 6));
-      }
-      metricSections.forEach(section => {
-        const entry = [...section.counts.entries()][index];
-        if(!entry) return;
-        const start = section.startColumn.charCodeAt(0);
-        rowCells.push(metricCell(`${String.fromCharCode(start)}${rowNumber}`, entry[0], 6));
-        rowCells.push(metricCell(`${String.fromCharCode(start + 1)}${rowNumber}`, entry[1], 6));
-      });
-      metricRows.push(`<row r="${rowNumber}">${rowCells.join('')}</row>`);
+    const moduleNames = [...new Set(exportIssues.map(issue => issue.modulo || 'Sin definir'))].sort((a,b) => a.localeCompare(b));
+    const owners = [...new Set(exportIssues.map(issue => issue.assigned || 'Sin asignar'))].sort((a,b) => a.localeCompare(b));
+    const evidenceTotal = exportIssues.reduce((sum, issue) => sum + (imagesCache[issue.id] || []).length, 0);
+    const today = new Date();
+    const ageDays = issue => {
+      const created = excelReportDate(issue.fecha || issue.createdAt);
+      return created ? Math.max(0, Math.floor((today - created) / 86400000)) : null;
+    };
+    const statusRows = STATUS_ORDER.map(status => [
+      STATUS_LABEL[status], statusCounts.get(status) || 0, total ? (statusCounts.get(status) || 0) / total : 0
+    ]);
+    statusRows.push(['Total', total, total ? 1 : 0]);
+    const severityRows = severityValues.map(severity => {
+      const matches = exportIssues.filter(issue => issue.severity === severity);
+      return [severity, matches.filter(issue => !isClosed(issue)).length, matches.filter(isClosed).length, matches.length];
+    });
+    const moduleRows = moduleNames.map(module => {
+      const matches = exportIssues.filter(issue => (issue.modulo || 'Sin definir') === module);
+      return [module, matches.filter(issue => !isClosed(issue)).length, matches.filter(isClosed).length, matches.length];
+    });
+    const ownerRows = owners.map(owner => {
+      const matches = exportIssues.filter(issue => (issue.assigned || 'Sin asignar') === owner);
+      return [owner, matches.filter(issue => !isClosed(issue)).length, matches.filter(isClosed).length, matches.length];
+    });
+    const monday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+    const weekRows = [];
+    for(let index = 7; index >= 0; index--){
+      const start = new Date(monday);
+      start.setDate(start.getDate() - index * 7);
+      const end = new Date(start);
+      end.setDate(end.getDate() + 7);
+      const registered = exportIssues.filter(issue => {
+        const date = excelReportDate(issue.fecha || issue.createdAt);
+        return date && date >= start && date < end;
+      }).length;
+      const closed = exportIssues.filter(issue => {
+        const date = excelReportSolutionDate(issue);
+        return issue.status === 'Closed' && date && date >= start && date < end;
+      }).length;
+      weekRows.push([new Intl.DateTimeFormat('es-CO',{day:'numeric',month:'short'}).format(start), registered, closed]);
     }
+    const openAges = openIssues.map(ageDays).filter(value => value !== null);
+    const closureDurations = closedIssues.map(issue => {
+      const created = excelReportDate(issue.fecha || issue.createdAt);
+      const closed = excelReportSolutionDate(issue);
+      return created && closed ? Math.max(0, Math.floor((closed - created) / 86400000)) : null;
+    }).filter(value => value !== null);
+    const reopened = exportIssues.filter(issue => issue.status === 'ReOpen').length;
+    const summaryRows = [];
+    let summaryRow = 1;
+    const summaryLine = (values, style, height) => {
+      const cells = values.map((value, index) => {
+        if(value === null || value === undefined) return '';
+        const item = Array.isArray(value) ? value : [value, style];
+        return excelReportXmlCell(`${excelReportColumn(index + 1)}${summaryRow}`, item[0], item[1] ?? style);
+      }).join('');
+      summaryRows.push(`<row r="${summaryRow}"${height ? ` ht="${height}" customHeight="1"` : ''}>${cells}</row>`);
+      summaryRow++;
+    };
+    const addSection = (title, headings, rows) => {
+      summaryLine([title, '', '', ''], 3, 24);
+      summaryLine(headings, 1, 22);
+      rows.forEach(row => {
+        const rowStyle = row[0] === 'Total' ? 4 : 2;
+        summaryLine(row.slice(0,4).map((value, index) => Array.isArray(value)
+          ? value
+          : [value, index === 2 && title === 'Issues por estado' ? 5 : rowStyle]), 2);
+      });
+      summaryRow++;
+    };
+    summaryLine([['Resumen de issues / Bitácora QA', 6], '', '', ''], 6, 30);
+    summaryLine([`Alcance: ${total} issues (según los filtros aplicados) · ${scope || 'Todos los registros'} · ${excelReportDateText(today)}`, '', '', ''], 2, 22);
+    summaryRow++;
+    addSection('Issues por estado', ['Estado','Cantidad','% del total',''], statusRows);
+    addSection('Issues por severidad', ['Severidad','Abiertos','Cerrados','Total'], severityRows);
+    addSection('Issues por módulo', ['Módulo','Abiertos','Cerrados','Total'], moduleRows);
+    addSection('Tendencia semanal (últimas 8 semanas)', ['Semana del','Registrados','Cerrados',''], weekRows);
+    addSection('Issues por responsable', ['Responsable','Abiertos','Cerrados','Total'], ownerRows);
+    const qualityRows = [
+      ['Total de issues', total],
+      ['Issues cerrados', closedIssues.length],
+      ['Issues abiertos', openIssues.length],
+      ['Resolución (% cerrados sobre el total)', [total ? closedIssues.length / total : 0, 5]],
+      ['Evidencias adjuntas', evidenceTotal],
+      ['Tiempo promedio de cierre (días)', closureDurations.length ? closureDurations.reduce((a,b) => a + b, 0) / closureDurations.length : 'Sin datos'],
+      ['Antigüedad promedio de issues abiertos (días)', openAges.length ? openAges.reduce((a,b) => a + b, 0) / openAges.length : 'Sin datos'],
+      ['Issue abierto más antiguo (días)', openAges.length ? Math.max(...openAges) : 'Sin datos'],
+      ['Issues abiertos sin responsable', openIssues.filter(issue => !issue.assigned).length],
+      ['Issues en estado Re-Open', reopened],
+      ['Tasa de reapertura (%)', [total ? reopened / total : 0, 5]]
+    ].map(row => [row[0], row[1], '', '']);
+    addSection('Indicadores de calidad y gestión', ['Indicador','Valor','',''], qualityRows);
 
-    const metricsXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><cols><col min="1" max="1" width="24" customWidth="1"/><col min="2" max="11" width="18" customWidth="1"/></cols><sheetViews><sheetView workbookViewId="0"><pane ySplit="2" topLeftCell="A3" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><sheetData>${metricRows.join('')}</sheetData></worksheet>`;
+    const detailViews = `<sheetViews><sheetView showGridLines="0" workbookViewId="0"><pane ySplit="3" topLeftCell="A4" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>`;
+    const sheet2Cols = '<col min="1" max="1" width="46" customWidth="1"/><col min="2" max="2" width="18" customWidth="1"/><col min="3" max="4" width="18" customWidth="1"/>';
+    const metricsXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">${detailViews}<cols>${sheet2Cols}</cols><sheetData>${summaryRows.join('')}</sheetData></worksheet>`;
     const drawingXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">${drawingParts.join('')}</xdr:wsDr>`;
     const drawingRelationships = media.map((item, index) => `<Relationship Id="rId${index + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/${item.name.split('/').pop()}"/>`).join('');
 
-    const workbookXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Issues" sheetId="1" r:id="rId1"/><sheet name="Metricas" sheetId="2" r:id="rId3"/></sheets></workbook>`;
-    const stylesXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="3"><font/><font><b/></font><font><b/><color rgb="FFFFFFFF"/></font></fonts><fills count="5"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFE8A33D"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FF142534"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFD8EAF3"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="2"><border/><border><left style="thin"><color rgb="FFD4DEE7"/></left><right style="thin"><color rgb="FFD4DEE7"/></right><top style="thin"><color rgb="FFD4DEE7"/></top><bottom style="thin"><color rgb="FFD4DEE7"/></bottom></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="7"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment wrapText="1"/></xf><xf numFmtId="0" fontId="2" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf><xf numFmtId="0" fontId="2" fillId="3" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="left" vertical="center"/></xf><xf numFmtId="0" fontId="1" fillId="4" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center"/></xf><xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment vertical="top"/></xf></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`;
+    const workbookXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Bitácora" sheetId="1" r:id="rId1"/><sheet name="Resumen" sheetId="2" r:id="rId3"/></sheets></workbook>`;
+    const stylesXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="4"><font><sz val="10"/><name val="Arial"/></font><font><b/><color rgb="FFFFFFFF"/><sz val="10"/><name val="Arial"/></font><font><b/><color rgb="FFFFFFFF"/><sz val="14"/><name val="Arial"/></font><font><b/><sz val="10"/><name val="Arial"/></font></fonts><fills count="4"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF1F3A5F"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFEAF0F6"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="2"><border/><border><left style="thin"><color rgb="FFD4DEE7"/></left><right style="thin"><color rgb="FFD4DEE7"/></right><top style="thin"><color rgb="FFD4DEE7"/></top><bottom style="thin"><color rgb="FFD4DEE7"/></bottom></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="7"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf><xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf><xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf><xf numFmtId="0" fontId="3" fillId="3" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf><xf numFmtId="10" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf><xf numFmtId="0" fontId="2" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="center"/></xf></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`;
     const entries = [
       {name:'[Content_Types].xml', data:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Default Extension="jpg" ContentType="image/jpeg"/><Default Extension="jpeg" ContentType="image/jpeg"/><Default Extension="gif" ContentType="image/gif"/><Default Extension="bmp" ContentType="image/bmp"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/><Override PartName="/xl/drawings/drawing1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/></Types>'},
       {name:'_rels/.rels', data:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>'},
@@ -980,9 +1101,10 @@ async function downloadExcelWorkbookLegacy(){
     link.click();
     link.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
+    return true;
   }catch(error){
     console.error('Error creando Excel:', error);
-    alert('No se pudo crear el archivo Excel.');
+    throw error;
   }finally{
     button.textContent = originalText;
     button.disabled = false;
@@ -995,13 +1117,20 @@ async function downloadExcelWorkbook(){
   button.disabled = true;
   button.textContent = 'Preparando Excel...';
   try{
+    const exportIssues = filtered();
+    const searchTerm = document.getElementById('search').value.trim();
+    const scope = [
+      filterModule || 'Todos los módulos',
+      filterStatus ? STATUS_LABEL[filterStatus] : 'Todos los estados',
+      searchTerm ? `Búsqueda: ${searchTerm}` : ''
+    ].filter(Boolean).join(' · ');
     const response = await fetch('/api/export-excel', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({issues, images: imagesCache})
+      body: JSON.stringify({issues: exportIssues, images: imagesCache, scope})
     });
     if(response.status === 404 || response.status === 405){
-      await downloadExcelWorkbookLegacy();
+      await downloadExcelWorkbookClient(exportIssues, scope);
       return;
     }
     if(!response.ok){

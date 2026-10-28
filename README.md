@@ -3,9 +3,13 @@
 ## Ejecutar la app localmente
 
 1. Abre la carpeta del proyecto.
-2. Doble clic en start.bat.
-3. Abre en el navegador:
+2. Instala las dependencias con `pip install -r requirements.txt`.
+3. Doble clic en start.bat.
+4. Abre en el navegador:
    - http://127.0.0.1:8000/index.html
+
+Pillow permite insertar las evidencias como imágenes en el archivo Excel generado por el servidor local.
+En GitHub Pages, el Excel se genera directamente en el navegador; ambos modos respetan los filtros activos y crean las hojas `Bitácora` y `Resumen`.
 
 ## Publicar en GitHub Pages
 
