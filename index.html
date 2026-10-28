@@ -1000,6 +1000,10 @@ async function downloadExcelWorkbook(){
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({issues, images: imagesCache})
     });
+    if(response.status === 404 || response.status === 405){
+      await downloadExcelWorkbookLegacy();
+      return;
+    }
     if(!response.ok){
       let message = 'No se pudo generar el archivo Excel.';
       try{ message = (await response.json()).error || message; }catch{}
