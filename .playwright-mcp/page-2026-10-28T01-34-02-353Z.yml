@@ -1,0 +1,16 @@
+- generic [ref=f10e2]:
+  - generic [ref=f10e3]:
+    - generic [ref=f10e4]:
+      - generic [ref=f10e5]: Panamericana · Módulo Activos Fijos
+      - heading "Bitácora de Issues / QA" [level=1] [ref=f10e6]
+      - generic [ref=f10e7]: Cargando...
+    - generic [ref=f10e8]:
+      - button "Descargar Excel" [ref=f10e9] [cursor=pointer]
+      - button "Módulos" [ref=f10e10] [cursor=pointer]
+      - button "+ Registrar issue" [ref=f10e11] [cursor=pointer]
+  - generic [ref=f10e13]:
+    - generic [ref=f10e14]:
+      - button "Tabla" [ref=f10e15] [cursor=pointer]
+      - button "Kanban" [ref=f10e16] [cursor=pointer]
+    - textbox "Buscar por código del caso, título del hallazgo u observación..." [ref=f10e17]
+  - generic [ref=f10e18]: Datos visibles para cualquier persona con este enlace · Actualización en tiempo real

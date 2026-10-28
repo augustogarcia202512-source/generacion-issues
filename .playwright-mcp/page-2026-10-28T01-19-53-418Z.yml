@@ -1,0 +1,40 @@
+- generic [ref=f4e2]:
+  - generic [ref=f4e3]:
+    - generic [ref=f4e4]:
+      - generic [ref=f4e5]: Panamericana · Módulo Activos Fijos
+      - heading "Bitácora de Issues / QA" [level=1] [ref=f4e6]
+      - generic [ref=f4e7]: "Última actualización: 27/10/2026, 8:19:53 p. m."
+    - generic [ref=f4e8]:
+      - button "Módulos" [ref=f4e9] [cursor=pointer]
+      - button "+ Registrar issue" [ref=f4e10] [cursor=pointer]
+  - generic [ref=f4e11]:
+    - generic [ref=f4e12]:
+      - generic [ref=f4e13]: "0"
+      - generic [ref=f4e14]: Open
+    - generic [ref=f4e15]:
+      - generic [ref=f4e16]: "0"
+      - generic [ref=f4e17]: Blocked
+    - generic [ref=f4e18]:
+      - generic [ref=f4e19]: "0"
+      - generic [ref=f4e20]: Ready for Retest
+    - generic [ref=f4e21]:
+      - generic [ref=f4e22]: "0"
+      - generic [ref=f4e23]: In Progress
+    - generic [ref=f4e24]:
+      - generic [ref=f4e25]: "0"
+      - generic [ref=f4e26]: Closed
+    - generic [ref=f4e27]:
+      - generic [ref=f4e28]: "0"
+      - generic [ref=f4e29]: Re-Open
+    - generic [ref=f4e30]:
+      - generic [ref=f4e31]: "0"
+      - generic [ref=f4e32]: Total
+  - generic [ref=f4e33]:
+    - generic [ref=f4e34]:
+      - button "Tabla" [ref=f4e35] [cursor=pointer]
+      - button "Kanban" [ref=f4e36] [cursor=pointer]
+    - textbox "Buscar por código del caso, título del hallazgo u observación..." [ref=f4e37]
+  - generic [ref=f4e40]:
+    - generic [ref=f4e41]: Sin issues registrados
+    - text: Registra el primero con el botón "+ Registrar issue".
+  - generic [ref=f4e42]: Datos visibles para cualquier persona con este enlace · Actualización en tiempo real

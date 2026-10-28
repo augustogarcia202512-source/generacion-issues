@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Capturar evidencia</title>
+  <style>
+    :root{color-scheme:dark;--bg:#09111c;--panel:#111d2b;--line:#26374a;--text:#dce7f3;--dim:#91a0b3;--amber:#f59e0b}
+    *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font:14px system-ui,sans-serif}
+    .wrap{max-width:1100px;margin:auto;padding:18px}.top{display:flex;align-items:center;justify-content:space-between;gap:12px}
+    h1{font-size:18px;margin:0}.status{color:var(--dim);font-size:12px;margin-top:5px}
+    button{border:1px solid var(--line);background:var(--panel);color:var(--text);border-radius:4px;padding:11px 16px;cursor:pointer;font-weight:700}
+    button.primary{background:var(--amber);color:#1a1305;border-color:var(--amber)}button:disabled{opacity:.5;cursor:not-allowed}
+    .tools{display:flex;gap:8px;margin-top:12px;align-items:center}.tool-active{background:var(--amber)!important;color:#1a1305!important}.tool-label{color:var(--dim);font-size:12px;margin-left:auto}
+    .stage{height:calc(100vh - 185px);min-height:330px;margin-top:14px;border:1px solid var(--line);background:#05080d;display:flex;align-items:center;justify-content:center;overflow:auto}
+    canvas{max-width:100%;max-height:100%;width:auto;height:auto;image-rendering:auto;cursor:crosshair;touch-action:none}
+    canvas.full-size{max-width:none;max-height:none}
+    canvas.fit-size{object-fit:contain}#preview{display:none}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <div><h1 id="title">Captura de evidencia</h1><div class="status" id="status">Elige la ventana que quieres compartir…</div></div>
+      <div><button id="capture" class="primary" disabled>Tomar captura</button> <button id="accept" disabled>Usar selección</button></div>
+    </div>
+    <div class="tools">
+      <button id="toolCrop" class="tool-active" type="button">Seleccionar área</button>
+      <button id="toolRect" type="button" disabled>Cuadro</button>
+      <button id="toolArrow" type="button" disabled>Flecha</button>
+      <button id="undo" type="button" disabled>Deshacer</button>
+      <button id="clear" type="button" disabled>Limpiar marcas</button>
+      <button id="viewMode" type="button">Ver tamaño real</button>
+      <span class="tool-label">Dibuja sobre la captura antes de usarla</span>
+    </div>
+    <div class="stage"><canvas id="canvas"></canvas></div>
+  </div>
+<script>
+(() => {
+  const openerWindow = window.opener;
+  const status = document.getElementById('status');
+  const capture = document.getElementById('capture');
+  const accept = document.getElementById('accept');
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+  let stream, video, sourceImage, selection, start;
+  let tool = 'crop';
+  let fullSizeView = false;
+  let annotations = [];
+  let annotationDraft = null;
+
+  function send(message){
+    if(openerWindow && !openerWindow.closed) openerWindow.postMessage({...message, source:'issue-capture'}, location.origin);
+  }
+
+  async function share(){
+    if(!navigator.mediaDevices?.getDisplayMedia){
+      status.textContent='Este navegador no admite captura de pantalla.';return;
+    }
+    try{
+      const options = {
+        video: {
+          frameRate: { ideal: 30, max: 60 },
+          width: { ideal: 3840, max: 7680 },
+          height: { ideal: 2160, max: 4320 }
+        },
+        audio: false,
+        selfBrowserSurface: 'exclude',
+        surfaceSwitching: 'include',
+        preferCurrentTab: false
+      };
+      if (typeof CaptureController === 'function') {
+        const controller = new CaptureController();
+        if (typeof controller.setFocusBehavior === 'function') {
+          controller.setFocusBehavior('no-focus-change');
+        }
+        options.controller = controller;
+      }
+      stream = await navigator.mediaDevices.getDisplayMedia(options);
+      video = document.createElement('video');video.srcObject=stream;video.muted=true;video.playsInline=true;
+      await video.play();
+      capture.disabled=false;
+      const settings = stream.getVideoTracks()[0].getSettings();
+    status.textContent=`Ventana compartida a ${settings.width || video.videoWidth}×${settings.height || video.videoHeight}. Pulsa “Tomar captura” y selecciona el área.`;
+      stream.getVideoTracks()[0].addEventListener('ended',()=>{
+        status.textContent='La ventana dejó de compartirse.';capture.disabled=true;accept.disabled=true;
+      });
+      window.focus();
+    }catch(error){
+      if(error.name !== 'NotAllowedError') status.textContent='No se pudo compartir la ventana.';
+      send({type:'capture-cancelled'});
+    }
+  }
+
+  function drawArrow(context, startPoint, endPoint, width){
+    const dx=endPoint.x-startPoint.x, dy=endPoint.y-startPoint.y;
+    const angle=Math.atan2(dy,dx), length=width*5;
+    context.beginPath();context.moveTo(startPoint.x,startPoint.y);context.lineTo(endPoint.x,endPoint.y);context.stroke();
+    context.beginPath();
+    context.moveTo(endPoint.x,endPoint.y);
+    context.lineTo(endPoint.x-length*Math.cos(angle-Math.PI/6),endPoint.y-length*Math.sin(angle-Math.PI/6));
+    context.moveTo(endPoint.x,endPoint.y);
+    context.lineTo(endPoint.x-length*Math.cos(angle+Math.PI/6),endPoint.y-length*Math.sin(angle+Math.PI/6));
+    context.stroke();
+  }
+
+  function drawAnnotation(context, item, widthOverride){
+    const width=widthOverride || Math.max(3,canvas.width/1000);
+    context.save();context.strokeStyle='#ff0000';context.fillStyle='rgba(255,0,0,.08)';context.lineWidth=width;context.setLineDash([]);
+    if(item.type==='rect'){
+      context.fillRect(item.x,item.y,item.width,item.height);
+      context.strokeRect(item.x,item.y,item.width,item.height);
+    }else{
+      drawArrow(context,item.start,item.end,width);
+    }
+    context.restore();
+  }
+
+  function draw(){
+    if(!sourceImage) return;
+    ctx.drawImage(sourceImage,0,0,canvas.width,canvas.height);
+    if(selection){
+      const {x,y,width,height}=selection;
+      ctx.save();ctx.fillStyle='rgba(0,0,0,.58)';ctx.fillRect(0,0,canvas.width,canvas.height);
+      ctx.clearRect(x,y,width,height);ctx.drawImage(sourceImage,x,y,width,height,x,y,width,height);
+      ctx.strokeStyle='#f59e0b';ctx.lineWidth=Math.max(2,canvas.width/700);ctx.setLineDash([8,5]);ctx.strokeRect(x,y,width,height);ctx.restore();
+    }
+    annotations.forEach(item=>drawAnnotation(ctx,item));
+    if(annotationDraft) drawAnnotation(ctx,annotationDraft);
+  }
+
+  capture.addEventListener('click',()=>{
+    canvas.width=video.videoWidth;canvas.height=video.videoHeight;
+    ctx.drawImage(video,0,0,canvas.width,canvas.height);
+    sourceImage=document.createElement('canvas');sourceImage.width=canvas.width;sourceImage.height=canvas.height;
+    sourceImage.getContext('2d').drawImage(canvas,0,0);
+    ['toolRect','toolArrow','undo','clear'].forEach(id=>document.getElementById(id).disabled=false);
+    annotations=[];selection=null;accept.disabled=true;draw();
+    status.textContent=tool==='crop'?'Arrastra sobre la imagen para elegir el área.':'Arrastra para dibujar la marca seleccionada.';
+  });
+
+  document.querySelectorAll('#toolCrop,#toolRect,#toolArrow').forEach(button=>{
+    button.addEventListener('click',()=>{
+      tool=button.id==='toolCrop'?'crop':button.id==='toolRect'?'rect':'arrow';
+      document.querySelectorAll('#toolCrop,#toolRect,#toolArrow').forEach(item=>item.classList.toggle('tool-active',item===button));
+      annotationDraft=null;
+      accept.disabled=!selection || selection.width<4 || selection.height<4;
+      draw();
+      status.textContent=tool==='crop'?'Arrastra sobre la imagen para elegir el área.':'Arrastra para dibujar la marca seleccionada.';
+    });
+  });
+
+  document.getElementById('undo').addEventListener('click',()=>{annotations.pop();draw()});
+  document.getElementById('clear').addEventListener('click',()=>{annotations=[];draw()});
+  document.getElementById('viewMode').addEventListener('click',()=>{
+    fullSizeView=!fullSizeView;
+    canvas.classList.toggle('full-size',fullSizeView);
+    document.getElementById('viewMode').textContent=fullSizeView?'Ver página completa':'Ver tamaño real';
+  });
+
+  function point(event){const r=canvas.getBoundingClientRect();return{x:(event.clientX-r.left)*canvas.width/r.width,y:(event.clientY-r.top)*canvas.height/r.height}}
+  canvas.addEventListener('pointerdown',event=>{
+    if(!sourceImage)return;
+    start=point(event);
+    if(tool==='crop'){selection=null;accept.disabled=true}
+    else annotationDraft=tool==='rect'?{type:'rect',x:start.x,y:start.y,width:0,height:0}:{type:'arrow',start,end:start};
+    canvas.setPointerCapture(event.pointerId);
+  });
+  canvas.addEventListener('pointermove',event=>{
+    if(!start)return;
+    const p=point(event);
+    if(tool==='crop'){
+      const x=Math.max(0,Math.min(start.x,p.x)),y=Math.max(0,Math.min(start.y,p.y));
+      selection={x,y,width:Math.min(canvas.width,Math.max(start.x,p.x))-x,height:Math.min(canvas.height,Math.max(start.y,p.y))-y};
+      accept.disabled=selection.width<4||selection.height<4;
+    }else if(tool==='rect'){
+      const x=Math.max(0,Math.min(start.x,p.x)),y=Math.max(0,Math.min(start.y,p.y));
+      annotationDraft={type:'rect',x,y,width:Math.min(canvas.width,Math.max(start.x,p.x))-x,height:Math.min(canvas.height,Math.max(start.y,p.y))-y};
+    }else annotationDraft={type:'arrow',start,end:p};
+    draw();
+  });
+  canvas.addEventListener('pointerup',event=>{
+    canvas.releasePointerCapture(event.pointerId);
+    if(annotationDraft){
+      const valid=annotationDraft.type==='rect'?(annotationDraft.width>4&&annotationDraft.height>4):Math.hypot(annotationDraft.end.x-annotationDraft.start.x,annotationDraft.end.y-annotationDraft.start.y)>4;
+      if(valid){annotations.push(annotationDraft);draw()}
+    }
+    annotationDraft=null;start=null;accept.disabled=!selection||selection.width<4||selection.height<4;
+  });
+
+  accept.addEventListener('click',()=>{
+    if(!selection)return;const {x,y,width,height}=selection;
+    const cropped=document.createElement('canvas');cropped.width=Math.round(width);cropped.height=Math.round(height);
+    const croppedContext=cropped.getContext('2d');
+    croppedContext.drawImage(canvas,x,y,width,height,0,0,cropped.width,cropped.height);
+    annotations.forEach(item=>{
+      const shifted={...item};
+      if(shifted.type==='rect'){shifted.x-=x;shifted.y-=y}
+      else{shifted.start={x:shifted.start.x-x,y:shifted.start.y-y};shifted.end={x:shifted.end.x-x,y:shifted.end.y-y}}
+      drawAnnotation(croppedContext,shifted,Math.max(3,cropped.width/1000));
+    });
+    send({type:'capture-result',dataUrl:cropped.toDataURL('image/png')});
+    selection=null;accept.disabled=true;status.textContent='Captura enviada al issue. Pulsa “Tomar captura” para otra.';
+  });
+
+  window.addEventListener('beforeunload',()=>{stream?.getTracks().forEach(track=>track.stop());send({type:'capture-closed'})});
+  window.addEventListener('message',event=>{if(event.source!==openerWindow)return;if(event.data?.type==='capture-focus')window.focus()});
+  share();
+})();
+</script>
+</body>
+</html>

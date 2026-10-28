@@ -64,6 +64,42 @@ h1 span{ color: var(--text-dim); font-weight:500; }
   box-shadow: 3px 3px 0 rgba(232,163,61,0.25);
 }
 .new-btn:hover{ transform: translate(-1px,-1px); box-shadow: 4px 4px 0 rgba(232,163,61,0.35); }
+.header-actions{ display:flex; gap:10px; align-items:center; }
+.module-btn{ background:none; border:1px solid var(--line); color:var(--text); padding:12px 16px; border-radius:2px; cursor:pointer; font-weight:700; }
+.module-btn:hover{ border-color:var(--amber); color:var(--amber); }
+#modulesOverlay .modal{ max-width:620px; }
+.modules-header{ display:flex; align-items:center; gap:12px; margin-bottom:18px; }
+.modules-icon{ width:42px; height:42px; display:grid; place-items:center; background:var(--amber); color:#1A1305; border-radius:8px; font-size:21px; font-weight:800; box-shadow:0 8px 24px rgba(232,163,61,.18); }
+.modules-header h2{ margin:0; }
+.modules-header p{ margin:3px 0 0; color:var(--text-dim); font-size:12px; }
+.module-add{
+  display:grid; grid-template-columns:minmax(0,1fr) 86px; gap:14px;
+  padding:18px; border:1px solid rgba(232,163,61,.28); border-radius:8px;
+  background:linear-gradient(135deg, rgba(232,163,61,.11), rgba(15,30,43,.62));
+  box-shadow:inset 3px 0 0 var(--amber);
+}
+.module-name-field label{ display:block; color:var(--amber); font:700 11px 'JetBrains Mono',monospace; text-transform:uppercase; letter-spacing:1.1px; margin-bottom:8px; }
+.module-name-field input{
+  width:100%; height:48px; background:rgba(5,12,20,.82); border:1px solid rgba(232,163,61,.42);
+  color:var(--text); padding:12px 14px; border-radius:6px; font-size:15px; font-weight:600;
+  box-shadow:0 10px 30px rgba(0,0,0,.18); transition:border .15s ease, box-shadow .15s ease;
+}
+.module-name-field input::placeholder{ color:#77899b; font-weight:400; }
+.module-name-field input:focus{ outline:none; border-color:var(--amber); box-shadow:0 0 0 3px rgba(232,163,61,.13), 0 12px 30px rgba(0,0,0,.22); }
+.module-field-hint{ display:block; color:var(--text-dim); font-size:10.5px; margin-top:7px; }
+.module-prefix-field label{ display:block; color:var(--text-dim); font:700 10px 'JetBrains Mono',monospace; text-transform:uppercase; letter-spacing:.8px; margin-bottom:8px; text-align:center; }
+.module-prefix-preview{
+  height:48px; display:grid; place-items:center; border:1px solid rgba(232,163,61,.28); border-radius:6px;
+  background:#09131d; color:var(--amber); text-align:center; font:800 19px 'JetBrains Mono',monospace;
+  box-shadow:0 8px 24px rgba(0,0,0,.18);
+}
+#btnAddModule{ height:44px; border-radius:5px; font-size:13px; }
+.module-list{ display:grid; gap:8px; margin:14px 0; }
+.module-row{ display:grid; grid-template-columns:minmax(0,1fr) 58px auto; align-items:center; gap:10px; border:1px solid var(--line); padding:10px 12px; border-radius:3px; }
+.module-row strong{ font-size:13px; }
+.module-prefix{ font:700 12px 'JetBrains Mono',monospace; color:var(--amber); text-align:center; }
+.module-delete{ border:1px solid var(--open); background:none; color:var(--open); padding:7px 10px; border-radius:2px; cursor:pointer; }
+.module-delete:disabled{ opacity:.35; cursor:not-allowed; }
 .new-btn:focus-visible{ outline: 2px solid var(--amber); outline-offset:3px; }
 
 /* Summary strip */
@@ -125,10 +161,21 @@ tr:hover td{ background: rgba(232,163,61,0.04); }
   padding:5px 9px; border-radius:2px; cursor:pointer; font-family:'Inter',sans-serif;
 }
 .row-actions button:hover{ border-color: var(--amber); color: var(--amber); }
+.row-actions .icon-action{ width:28px; height:28px; padding:0; display:inline-grid; place-items:center; }
+.row-actions .icon-action svg{ width:15px; height:15px; }
+.quick-comment-overlay{ z-index:90; }
+.quick-comment-overlay .modal{ max-width:460px; }
+.quick-comment-head{ display:flex; align-items:start; justify-content:space-between; gap:16px; }
+.quick-comment-head h2{ margin-bottom:4px; }
+.quick-comment-head p{ color:var(--text-dim); font-size:12px; }
+.quick-comment-modal textarea{ min-height:120px; }
+.quick-comment-modal select{ font-weight:700; }
+.quick-comment-modal .modal-actions{ justify-content:flex-end; }
 
 /* Kanban */
 .kanban{ display:grid; grid-template-columns: repeat(6, 1fr); gap:14px; align-items:start; }
-.kcol{ background: var(--panel); border:1px solid var(--line); border-radius:3px; min-height:120px; }
+.kcol{ background: var(--panel); border:1px solid var(--line); border-radius:3px; min-height:120px; transition:border-color .15s, background .15s; }
+.kcol.drag-over{ border-color:var(--amber); background:rgba(232,163,61,.06); }
 .kcol-head{
   padding:12px 14px; border-bottom:2px solid var(--line); display:flex; justify-content:space-between; align-items:center;
   font-family:'JetBrains Mono',monospace; font-size:11px; text-transform:uppercase; letter-spacing:0.8px;
@@ -137,16 +184,24 @@ tr:hover td{ background: rgba(232,163,61,0.04); }
 .kcards{ padding:10px; display:flex; flex-direction:column; gap:8px; min-height:60px; }
 .kcard{
   background: var(--panel-2); border:1px solid var(--line); border-left:3px solid var(--amber);
-  border-radius:2px; padding:10px 11px; cursor:pointer;
+  border-radius:2px; padding:10px 11px; cursor:grab;
 }
 .kcard:hover{ border-left-color: var(--text); }
+.kcard.dragging{ opacity:.45; cursor:grabbing; }
 .kcard .testid{ display:block; margin-bottom:4px; }
 .kcard .kform{ font-size:12.5px; font-weight:600; margin-bottom:4px; }
-.kcard .kobs{ font-size:11.5px; color:var(--text-dim); line-height:1.4; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+.kcard .kobs{ font-size:11.5px; color:var(--text-dim); line-height:1.4; display:-webkit-box; -webkit-line-clamp:2; line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
 
 /* Modal */
 .overlay{ position:fixed; inset:0; background:rgba(6,12,18,0.72); display:none; align-items:center; justify-content:center; z-index:50; padding:20px; }
 .overlay.show{ display:flex; }
+.crop-overlay{ position:fixed; inset:0; background:rgba(6,12,18,.92); display:none; align-items:center; justify-content:center; z-index:70; padding:16px; }
+.crop-overlay.show{ display:flex; }
+.crop-modal{ width:96vw; max-width:1100px; max-height:96vh; background:var(--panel); border:1px solid var(--line); border-top:3px solid var(--amber); padding:18px; border-radius:3px; }
+.crop-modal h2{ font-size:18px; margin-bottom:12px; }
+.crop-stage{ height:min(74vh,720px); display:flex; align-items:center; justify-content:center; overflow:hidden; background:#05080d; }
+.crop-stage canvas{ max-width:100%; max-height:100%; cursor:crosshair; touch-action:none; }
+.crop-help{ color:var(--text-dim); font-size:11px; margin:10px 0; }
 .modal{
   background: var(--panel); border:1px solid var(--line); border-top: 3px solid var(--amber);
   width:100%; max-width:560px; max-height:88vh; overflow-y:auto; border-radius:3px; padding:26px;
@@ -158,6 +213,26 @@ tr:hover td{ background: rgba(232,163,61,0.04); }
   width:100%; background: var(--bg); border:1px solid var(--line); color:var(--text);
   padding:10px 12px; border-radius:2px; font-family:'Inter',sans-serif; font-size:13.5px;
 }
+
+.tracking-field{ padding:14px; border:1px solid rgba(232,163,61,.22); border-radius:6px; background:linear-gradient(135deg, rgba(232,163,61,.06), transparent 55%); }
+.tracking-field > label{ color:var(--amber); }
+.tracking-list{ display:grid; gap:8px; max-height:190px; overflow-y:auto; margin-bottom:12px; }
+.tracking-empty{ color:var(--text-dim); font-size:12px; padding:12px; border:1px dashed var(--line); border-radius:4px; }
+.tracking-entry{ padding:10px 12px; background:var(--bg); border:1px solid var(--line); border-left:3px solid var(--amber); border-radius:4px; }
+.tracking-meta{ display:flex; justify-content:space-between; gap:10px; color:var(--text-dim); font:10px 'JetBrains Mono',monospace; margin-bottom:5px; }
+.tracking-meta strong{ color:var(--amber); }
+.tracking-type{ display:inline-flex; align-items:center; padding:3px 7px; border-radius:999px; border:1px solid var(--line); font:700 9px 'JetBrains Mono',monospace; text-transform:uppercase; letter-spacing:.5px; }
+.tracking-type.Solución{ color:#71D89A; border-color:rgba(113,216,154,.38); background:rgba(113,216,154,.09); }
+.tracking-type.Novedad{ color:#f4c66d; border-color:rgba(244,198,109,.38); background:rgba(244,198,109,.09); }
+.tracking-type.Seguimiento{ color:#8FB6FF; border-color:rgba(143,182,255,.38); background:rgba(143,182,255,.09); }
+.tracking-controls{ display:flex; gap:8px; margin-bottom:8px; }
+.tracking-controls select{ flex:1; min-height:38px; background:var(--bg); border:1px solid var(--line); color:var(--text); border-radius:4px; padding:8px 10px; }
+.tracking-controls small{ align-self:center; color:var(--text-dim); font-size:10px; }
+.tracking-text{ white-space:pre-wrap; font-size:12.5px; line-height:1.5; }
+.tracking-composer{ display:flex; gap:8px; align-items:flex-end; }
+.tracking-composer textarea{ min-height:72px; flex:1; }
+.tracking-add{ height:72px; min-width:118px; border:none; border-radius:4px; background:var(--amber); color:#1A1305; font-weight:800; cursor:pointer; }
+.tracking-add:disabled{ opacity:.45; cursor:not-allowed; }
 .field textarea{ min-height:80px; resize:vertical; }
 .field input:focus-visible, .field select:focus-visible, .field textarea:focus-visible{ outline:2px solid var(--amber); }
 .field-row{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
@@ -177,6 +252,11 @@ tr:hover td{ background: rgba(232,163,61,0.04); }
 }
 .upload-zone:hover{ border-color: var(--amber); color: var(--amber); }
 .upload-zone input[type=file]{ position:absolute; inset:0; opacity:0; cursor:pointer; }
+.evidence-actions{ display:flex; gap:8px; }
+.evidence-actions button{ flex:1; background:none; border:1px solid var(--line); color:var(--text-dim); padding:10px 8px; border-radius:2px; cursor:pointer; font-size:12.5px; }
+.evidence-actions button:hover{ border-color: var(--amber); color: var(--amber); }
+.evidence-actions button:disabled{ opacity:.55; cursor:not-allowed; }
+.capture-status{ min-height:16px; margin-top:8px; color:var(--text-dim); font-size:11px; }
 .upload-preview{ margin-top:10px; position:relative; display:inline-block; }
 .upload-preview img{ max-width:100%; max-height:160px; border-radius:2px; border:1px solid var(--line); display:block; }
 .upload-preview button{
@@ -189,12 +269,34 @@ tr:hover td{ background: rgba(232,163,61,0.04); }
 .empty{ text-align:center; padding:60px 20px; color:var(--text-dim); }
 .empty .big{ font-size:15px; color:var(--text); margin-bottom:6px; }
 
+ .viewer{ position:fixed; inset:0; z-index:100; display:none; background:rgba(2,6,12,.96); }
+.viewer.show{ display:flex; flex-direction:column; }
+.viewer-toolbar{ height:58px; display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 18px; border-bottom:1px solid var(--line); background:#09111c; }
+.viewer-title{ font:11px 'JetBrains Mono',monospace; color:var(--text-dim); }
+.viewer-actions{ display:flex; gap:8px; }
+.viewer-actions button{ background:none; border:1px solid var(--line); color:var(--text); padding:8px 12px; border-radius:2px; cursor:pointer; }
+.viewer-actions button:hover{ border-color:var(--amber); color:var(--amber); }
+.viewer-stage{ min-height:0; flex:1; display:flex; align-items:center; justify-content:center; overflow:auto; padding:18px; }
+.viewer-image{ max-width:100%; max-height:100%; object-fit:contain; box-shadow:0 18px 60px rgba(0,0,0,.65); }
+.viewer-image.full-size{ max-width:none; max-height:none; }
+.viewer-hint{ color:var(--text-dim); font-size:11px; }
+
 .footer-note{ margin-top:28px; font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-dim); text-align:center; }
 
 @media (max-width: 900px){
+  .module-add{ grid-template-columns:1fr 78px; }
   .kanban{ grid-template-columns: 1fr; }
   .summary{ grid-template-columns: repeat(3,1fr); }
   table{ display:block; overflow-x:auto; white-space:nowrap; }
+}
+@media (max-width: 520px){
+  .modules-header p{ display:none; }
+  .module-add{ grid-template-columns:1fr; }
+  .module-prefix-field{ max-width:86px; }
+  .tracking-composer{ display:grid; }
+  .tracking-add{ width:100%; height:40px; }
+  .module-row{ grid-template-columns:1fr auto; }
+  .module-prefix{ grid-column:1 / -1; grid-row:2; text-align:left; }
 }
 </style>
 </head>
@@ -207,7 +309,11 @@ tr:hover td{ background: rgba(232,163,61,0.04); }
       <h1>Bitácora de Issues <span>/ QA</span></h1>
       <div class="meta" id="lastUpdate">Cargando...</div>
     </div>
-    <button class="new-btn" id="btnNew">+ Registrar issue</button>
+    <div class="header-actions">
+      <button class="module-btn" id="btnExportExcel">Descargar Excel</button>
+      <button class="module-btn" id="btnModules">Módulos</button>
+      <button class="new-btn" id="btnNew">+ Registrar issue</button>
+    </div>
   </div>
 
   <div class="summary" id="summary"></div>
@@ -217,7 +323,7 @@ tr:hover td{ background: rgba(232,163,61,0.04); }
       <button id="viewTableBtn" class="active">Tabla</button>
       <button id="viewKanbanBtn">Kanban</button>
     </div>
-    <input class="filter-search" id="search" placeholder="Buscar por Test ID, formulario u observación...">
+    <input class="filter-search" id="search" placeholder="Buscar por código del caso, título del hallazgo u observación...">
   </div>
 
   <div id="tableView"></div>
@@ -231,18 +337,22 @@ tr:hover td{ background: rgba(232,163,61,0.04); }
     <h2 id="modalTitle">Registrar issue</h2>
     <form id="issueForm">
       <div class="field-row">
-        <div class="field"><label>Test ID</label><input type="text" id="f_testid" placeholder="Imagen 7" required></div>
-        <div class="field"><label>Módulo</label><input type="text" id="f_modulo" value="Activos fijos" required></div>
+        <div class="field"><label>Código del caso</label><input type="text" id="f_testid" readonly required></div>
+        <div class="field"><label>Módulo afectado</label><select id="f_modulo" required></select></div>
       </div>
-      <div class="field"><label>Escenario / Formulario</label><input type="text" id="f_formulario" placeholder="Ej. Registrar bajas" required></div>
-      <div class="field"><label>Observación</label><textarea id="f_obs" placeholder="Describe el comportamiento encontrado..." required></textarea></div>
+      <div class="field"><label>Título del hallazgo</label><input type="text" id="f_formulario" placeholder="Ej. No permite registrar una baja" required></div>
+      <div class="field"><label>Descripción del hallazgo</label><textarea id="f_obs" placeholder="Describe el comportamiento encontrado..." required></textarea></div>
       <div class="field">
         <label>Evidencia (imagen)</label>
         <div id="uploadZoneWrap">
-          <label class="upload-zone" id="uploadZone">
-            Clic para adjuntar capturas (PNG/JPG, máx. 5 imágenes)
-            <input type="file" id="f_image" accept="image/*" multiple>
-          </label>
+          <div class="evidence-actions">
+            <button type="button" id="btnCaptureScreen">Captura de pantalla</button>
+            <label class="upload-zone" id="uploadZone">
+              Adjuntar imágenes
+              <input type="file" id="f_image" accept="image/*" multiple>
+            </label>
+          </div>
+          <div class="capture-status" id="captureStatus">Máx. 5 imágenes · PNG/JPG</div>
         </div>
         <div id="uploadPreviewWrap"></div>
       </div>
@@ -271,7 +381,22 @@ tr:hover td{ background: rgba(232,163,61,0.04); }
         </div>
         <div class="field"><label>Asignado a</label><input type="text" id="f_assigned" placeholder="Nombre"></div>
       </div>
-      <div class="field"><label>Solución / notas</label><textarea id="f_solucion" placeholder="Opcional"></textarea></div>
+      <div class="field tracking-field">
+        <label>Trazabilidad / novedades</label>
+        <div class="tracking-list" id="trackingList"></div>
+        <div class="tracking-controls">
+          <select id="f_novedad_tipo" aria-label="Tipo de actualización">
+            <option value="Novedad">Novedad</option>
+            <option value="Seguimiento">Seguimiento</option>
+            <option value="Solución">Solución / cerrar issue</option>
+          </select>
+          <small id="trackingCloseHint">Closed automático al registrar solución</small>
+        </div>
+        <div class="tracking-composer">
+          <textarea id="f_novedad" placeholder="Escribe la novedad, avance o solución..." maxlength="2000"></textarea>
+          <button type="button" class="tracking-add" id="btnAddNovedad">Agregar actualización</button>
+        </div>
+      </div>
       <div class="modal-actions">
         <div>
           <button type="button" class="btn-danger" id="btnDelete" style="display:none;">Eliminar</button>
@@ -285,60 +410,147 @@ tr:hover td{ background: rgba(232,163,61,0.04); }
   </div>
 </div>
 
-<div class="lightbox" id="lightbox"><img id="lightboxImg" src=""></div>
+<div class="overlay quick-comment-overlay" id="quickCommentOverlay" role="dialog" aria-modal="true" aria-labelledby="quickCommentTitle">
+  <div class="modal quick-comment-modal">
+    <div class="quick-comment-head">
+      <div><h2 id="quickCommentTitle">Agregar comentario</h2><p id="quickCommentIssue">Issue</p></div>
+    </div>
+    <div class="field">
+      <label for="quickCommentType">Tipo de actualización</label>
+      <select id="quickCommentType">
+        <option value="Novedad">Novedad</option>
+        <option value="Seguimiento">Seguimiento</option>
+        <option value="Solución">Solución / cerrar issue</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="quickCommentText">Comentario</label>
+      <textarea id="quickCommentText" maxlength="2000" placeholder="Escribe el avance, novedad o solución..."></textarea>
+    </div>
+    <div class="modal-actions">
+      <button type="button" class="btn-secondary" id="btnQuickCommentCancel">Cancelar</button>
+      <button type="button" class="btn-primary" id="btnQuickCommentSave">Guardar comentario</button>
+    </div>
+  </div>
+</div>
+
+<div class="crop-overlay" id="cropOverlay">
+  <div class="crop-modal">
+    <h2>Seleccionar área de la captura</h2>
+    <div class="crop-stage"><canvas id="cropCanvas"></canvas></div>
+    <div class="crop-help">Arrastra sobre la imagen para seleccionar solo la parte que quieres adjuntar.</div>
+    <div class="modal-actions">
+      <button type="button" class="btn-secondary" id="btnCropCancel">Cancelar captura</button>
+      <button type="button" class="btn-primary" id="btnCropAccept" disabled>Usar selección</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="modulesOverlay">
+  <div class="modal">
+    <div class="modules-header">
+      <div class="modules-icon" aria-hidden="true">M</div>
+      <div>
+        <h2>Administrar módulos</h2>
+        <p>Crea módulos y genera IDs identificables automáticamente.</p>
+      </div>
+    </div>
+    <div class="module-add">
+      <div class="module-name-field">
+        <label for="moduleName">Nombre del nuevo módulo</label>
+        <input type="text" id="moduleName" maxlength="60" placeholder="Ej. Presupuestos Generales" autocomplete="off">
+        <small class="module-field-hint">Ejemplo: Activos Fijos → AF-001</small>
+      </div>
+      <div class="module-prefix-field"><label>Prefijo</label><div class="module-prefix-preview" id="modulePrefixPreview">—</div></div>
+    </div>
+    <button class="new-btn" id="btnAddModule" style="margin-top:12px;width:100%">Agregar módulo</button>
+    <div class="module-list" id="moduleList"></div>
+    <div class="modal-actions" style="margin-top:18px">
+      <button class="btn-secondary" id="btnCloseModules">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<div class="viewer" id="lightbox" role="dialog" aria-modal="true" aria-label="Vista ampliada de evidencia">
+  <div class="viewer-toolbar">
+    <div>
+      <div class="viewer-title" id="lightboxTitle">Evidencia</div>
+      <div class="viewer-hint">← → para navegar · Esc para cerrar</div>
+    </div>
+    <div class="viewer-actions">
+      <button type="button" id="viewerFit" title="Ajustar a la pantalla">Ajustar</button>
+      <button type="button" id="viewerPrev" title="Evidencia anterior">Anterior</button>
+      <button type="button" id="viewerNext" title="Evidencia siguiente">Siguiente</button>
+      <button type="button" id="viewerClose" title="Cerrar vista ampliada">Cerrar ×</button>
+    </div>
+  </div>
+  <div class="viewer-stage"><img class="viewer-image" id="lightboxImg" src="" alt="Evidencia ampliada"></div>
+</div>
 
 <script>
 const STATUS_ORDER = ['Open','Blocked','ReadyRetest','InProgress','Closed','ReOpen'];
 const STATUS_LABEL = {Open:'Open',Blocked:'Blocked',ReadyRetest:'Ready for Retest',InProgress:'In Progress',Closed:'Closed',ReOpen:'Re-Open'};
 
 let issues = [];
+let modules = [];
 let imagesCache = {}; // id -> array of dataURLs, loaded from separate storage keys
 let editingId = null;
 let currentView = 'table';
 let pendingImages = [];
+let pendingNovedades = [];
+let quickCommentIssueId = null;
 const MAX_IMAGES_PER_ISSUE = 5;
 
 const storageApi = (function(){
   const fallbackStorage = window.localStorage;
+  const apiUrl = '/api/storage';
+
+  async function apiRequest(method, key, value){
+    const url = method === 'GET'
+      ? `${apiUrl}?key=${encodeURIComponent(key)}`
+      : apiUrl;
+    const response = await fetch(url, {
+      method,
+      headers: method === 'POST' ? {'Content-Type':'application/json'} : undefined,
+      body: method === 'POST' ? JSON.stringify({key, value}) : undefined
+    });
+    if(!response.ok) throw new Error(`Storage API respondió ${response.status}`);
+    return response.json();
+  }
+
+  function localGet(key){
+    const value = fallbackStorage.getItem(key);
+    return value === null ? null : { value };
+  }
 
   return {
     async get(key){
-      if(!fallbackStorage){
-        return null;
-      }
-
-      try {
-        const value = fallbackStorage.getItem(key);
-        return value === null ? null : { value };
-      } catch (error) {
-        console.warn('No se pudo leer desde localStorage:', error);
-        return null;
+      try{
+        const payload = await apiRequest('GET', key);
+        return Object.prototype.hasOwnProperty.call(payload, 'value') ? payload : null;
+      }catch(error){
+        try{ return localGet(key); }
+        catch(localError){ console.warn('No se pudo leer el almacenamiento:', localError); return null; }
       }
     },
     async set(key, value){
-      if(!fallbackStorage){
-        return false;
-      }
-
-      try {
-        fallbackStorage.setItem(key, value);
+      try{
+        await apiRequest('POST', key, value);
+        if(fallbackStorage) fallbackStorage.setItem(key, value);
         return true;
-      } catch (error) {
-        console.warn('No se pudo guardar en localStorage:', error);
-        return false;
+      }catch(error){
+        try{ fallbackStorage.setItem(key, value); return true; }
+        catch(localError){ console.warn('No se pudo guardar el almacenamiento:', localError); return false; }
       }
     },
     async delete(key){
-      if(!fallbackStorage){
-        return false;
-      }
-
-      try {
-        fallbackStorage.removeItem(key);
+      try{
+        await apiRequest('DELETE', key);
+        if(fallbackStorage) fallbackStorage.removeItem(key);
         return true;
-      } catch (error) {
-        console.warn('No se pudo eliminar desde localStorage:', error);
-        return false;
+      }catch(error){
+        try{ fallbackStorage.removeItem(key); return true; }
+        catch(localError){ console.warn('No se pudo eliminar del almacenamiento:', localError); return false; }
       }
     }
   };
@@ -361,6 +573,62 @@ async function loadIssueImages(issue){
   }
 }
 
+function moduleInitials(name){
+  const stopWords = new Set(['de','del','la','las','el','los','y','e','para','por']);
+  const words = name.trim().split(/\s+/).filter(word => !stopWords.has(word.toLocaleLowerCase('es')));
+  const initials = words.map(word => word.normalize('NFD').replace(/[\u0300-\u036f]/g, '')[0]).join('').toUpperCase();
+  return (initials || name.trim()[0] || 'M').slice(0,5);
+}
+
+function uniqueModulePrefix(name){
+  const base = moduleInitials(name);
+  let prefix = base;
+  let suffix = 2;
+  while(modules.some(module => module.prefix === prefix)) prefix = base + suffix++;
+  return prefix;
+}
+
+function nextTestId(moduleName){
+  const module = modules.find(item => item.name === moduleName);
+  if(!module) return '';
+  const escapedPrefix = module.prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const pattern = new RegExp('^' + escapedPrefix + '-(\\d+)$', 'i');
+  const numbers = issues
+    .map(issue => issue.testid && issue.testid.match(pattern))
+    .filter(Boolean)
+    .map(match => Number(match[1]))
+    .filter(Number.isFinite);
+  return module.prefix + '-' + String(Math.max(0, ...numbers) + 1).padStart(3, '0');
+}
+
+function renderModuleOptions(selectedName){
+  const select = document.getElementById('f_modulo');
+  select.innerHTML = modules.map(module => `<option value="${escapeHtml(module.name)}">${escapeHtml(module.name)} (${module.prefix})</option>`).join('');
+  if(selectedName && modules.some(module => module.name === selectedName)) select.value = selectedName;
+  else if(selectedName){
+    select.insertAdjacentHTML('beforeend', `<option value="${escapeHtml(selectedName)}">${escapeHtml(selectedName)} (sin módulo activo)</option>`);
+    select.value = selectedName;
+  }
+  if(!select.value && modules[0]) select.value = modules[0].name;
+}
+
+async function saveModules(){
+  await storageApi.set('modules-list', JSON.stringify(modules));
+}
+
+async function loadModules(){
+  try{
+    const res = await storageApi.get('modules-list');
+    modules = res && res.value ? JSON.parse(res.value) : [];
+  }catch(e){ modules = []; }
+  if(!Array.isArray(modules)) modules = [];
+  if(!modules.length){
+    modules = [{ name: 'Activos fijos', prefix: 'AF' }];
+    await saveModules();
+  }
+  renderModuleOptions();
+}
+
 async function loadIssues(){
   try{
     const res = await storageApi.get('issues-list');
@@ -378,20 +646,303 @@ async function saveIssues(){
   document.getElementById('lastUpdate').textContent = 'Última actualización: ' + new Date().toLocaleString('es-CO');
 }
 
+const excelCrcTable = (() => {
+  const table = new Uint32Array(256);
+  for(let i = 0; i < 256; i++){
+    let value = i;
+    for(let bit = 0; bit < 8; bit++) value = (value & 1) ? (0xedb88320 ^ (value >>> 1)) : (value >>> 1);
+    table[i] = value >>> 0;
+  }
+  return table;
+})();
+
+function excelCrc32(bytes){
+  let crc = 0xffffffff;
+  for(let i = 0; i < bytes.length; i++) crc = excelCrcTable[(crc ^ bytes[i]) & 0xff] ^ (crc >>> 8);
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function excelXmlText(value){
+  return String(value ?? '').replace(/[&<>]/g, char => ({'&':'&amp;', '<':'&lt;', '>':'&gt;'}[char])).replace(/"/g, '&quot;');
+}
+
+function excelInlineCell(value, styleId = 0){
+  return `<c r="{cellRef}" s="${styleId}" t="inlineStr"><is><t xml:space="preserve">${excelXmlText(value)}</t></is></c>`;
+}
+
+function excelDataUrlBytes(dataUrl){
+  const match = /^data:image\/([^;,]+);base64,(.+)$/i.exec(dataUrl || '');
+  if(!match) return null;
+  const binary = atob(match[2]);
+  const bytes = new Uint8Array(binary.length);
+  for(let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return {bytes, extension: match[1].toLowerCase().replace('jpeg', 'jpg')};
+}
+
+function excelCreateZip(entries){
+  const encoder = new TextEncoder();
+  const localParts = [];
+  const centralParts = [];
+  let offset = 0;
+  const localDate = new Date();
+  const dosTime = (localDate.getHours() << 11) | (localDate.getMinutes() << 5) | (Math.floor(localDate.getSeconds() / 2));
+  const dosDate = ((localDate.getFullYear() - 1980) << 9) | ((localDate.getMonth() + 1) << 5) | localDate.getDate();
+
+  for(const entry of entries){
+    const name = encoder.encode(entry.name);
+    const data = typeof entry.data === 'string' ? encoder.encode(entry.data) : entry.data;
+    const crc = excelCrc32(data);
+    const local = new Uint8Array(30 + name.length);
+    const view = new DataView(local.buffer);
+    view.setUint32(0, 0x04034b50, true); view.setUint16(4, 20, true); view.setUint16(6, 0x0800, true);
+    view.setUint16(8, 0, true); view.setUint16(10, dosTime, true); view.setUint16(12, dosDate, true);
+    view.setUint32(14, crc, true); view.setUint32(18, data.length, true); view.setUint32(22, data.length, true);
+    view.setUint16(26, name.length, true);
+    local.set(name, 30);
+    localParts.push(local, data);
+
+    const central = new Uint8Array(46 + name.length);
+    const cv = new DataView(central.buffer);
+    cv.setUint32(0, 0x02014b50, true); cv.setUint16(4, 20, true); cv.setUint16(6, 20, true);
+    cv.setUint16(8, 0x0800, true); cv.setUint16(10, 0, true); cv.setUint16(12, dosTime, true); cv.setUint16(14, dosDate, true);
+    cv.setUint32(16, crc, true); cv.setUint32(20, data.length, true); cv.setUint32(24, data.length, true);
+    cv.setUint16(28, name.length, true); cv.setUint32(42, offset, true);
+    central.set(name, 46);
+    centralParts.push(central);
+    offset += local.length + data.length;
+  }
+
+  const centralSize = centralParts.reduce((sum, part) => sum + part.length, 0);
+  const end = new Uint8Array(22);
+  const ev = new DataView(end.buffer);
+  ev.setUint32(0, 0x06054b50, true); ev.setUint16(8, entries.length, true); ev.setUint16(10, entries.length, true);
+  ev.setUint32(12, centralSize, true); ev.setUint32(16, offset, true);
+  return new Blob([...localParts, ...centralParts, end], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+}
+
+async function downloadExcelWorkbookLegacy(){
+  const button = document.getElementById('btnExportExcel');
+  const originalText = button.textContent;
+  button.disabled = true;
+  button.textContent = 'Preparando...';
+  try{
+    const headers = ['Código del caso','Módulo afectado','Título del hallazgo','Descripción del hallazgo','Estado','Severity','Priority','Asignado a','Fecha de creación','Evidencia 1','Evidencia 2','Evidencia 3','Evidencia 4','Evidencia 5','Trazabilidad'];
+    const media = [];
+    const drawingParts = [];
+    const rows = headers.map((header, column) => excelInlineCell(header, 3).replace('{cellRef}', `${String.fromCharCode(65 + column)}1`)).join('');
+    const sheetRows = [`<row r="1" ht="28" customHeight="1">${rows}</row>`];
+
+    issues.forEach((issue, issueIndex) => {
+      const values = [
+        issue.testid, issue.modulo, issue.formulario, issue.obs, issue.status,
+        issue.severity, issue.priority, issue.assigned || '', issue.createdAt,
+        '', '', '', '', '',
+        (issue.novedades || []).map(item => `${item.type || 'Novedad'} — ${item.date || ''}\n${item.text || ''}`).join('\n\n')
+      ];
+      const rowNumber = issueIndex + 2;
+      const cells = values.map((value, column) => excelInlineCell(value, column >= 9 && column <= 13 ? 2 : 0).replace('{cellRef}', `${String.fromCharCode(65 + column)}${rowNumber}`)).join('');
+      sheetRows.push(`<row r="${rowNumber}" ht="95" customHeight="1">${cells}</row>`);
+
+      const images = (imagesCache[issue.id] || []).slice(0, 5);
+      images.forEach((dataUrl, imageIndex) => {
+        const image = excelDataUrlBytes(dataUrl);
+        if(!image) return;
+        const extension = ['png','jpg','jpeg','gif','bmp'].includes(image.extension) ? image.extension : 'png';
+        const mediaName = `image${media.length + 1}.${extension}`;
+        const relationshipId = `rId${media.length + 1}`;
+        media.push({name:`xl/media/${mediaName}`, data:image.bytes});
+        const col = 9 + imageIndex;
+        const cell = String.fromCharCode(65 + col);
+        const shapeId = media.length + 1;
+        drawingParts.push(`
+          <xdr:twoCellAnchor editAs="oneCell">
+            <xdr:from><xdr:col>${col}</xdr:col><xdr:colOff>7000</xdr:colOff><xdr:row>${issueIndex + 1}</xdr:row><xdr:rowOff>7000</xdr:rowOff></xdr:from>
+            <xdr:to><xdr:col>${col + 1}</xdr:col><xdr:colOff>7000</xdr:colOff><xdr:row>${issueIndex + 2}</xdr:row><xdr:rowOff>7000</xdr:rowOff></xdr:to>
+            <xdr:pic>
+              <xdr:nvPicPr><xdr:cNvPr id="${shapeId}" name="Evidencia ${imageIndex + 1} - ${excelXmlText(issue.testid || issue.id)}"/><xdr:cNvPicPr/></xdr:nvPicPr>
+              <xdr:blipFill><a:blip r:embed="${relationshipId}"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill>
+              <xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="914400" cy="914400"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr>
+            </xdr:pic>
+            <xdr:clientData/>
+          </xdr:twoCellAnchor>`);
+      });
+    });
+
+    const sheetXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><cols><col min="1" max="1" width="18" customWidth="1"/><col min="2" max="4" width="24" customWidth="1"/><col min="5" max="8" width="16" customWidth="1"/><col min="10" max="14" width="18" customWidth="1"/><col min="15" max="15" width="42" customWidth="1"/></cols><sheetData>${sheetRows.join('')}</sheetData><drawing r:id="rId1"/></worksheet>`;
+
+    const countBy = field => issues.reduce((counts, issue) => {
+      const key = String(issue[field] || 'Sin definir');
+      counts.set(key, (counts.get(key) || 0) + 1);
+      return counts;
+    }, new Map());
+    const statusCounts = countBy('status');
+    const severityCounts = countBy('severity');
+    const moduleCounts = countBy('modulo');
+    const evidenceCount = issues.reduce((sum, issue) => sum + (imagesCache[issue.id] || []).length, 0);
+    const closedCount = statusCounts.get('Closed') || 0;
+    const closedPercent = issues.length ? Math.round(closedCount * 100 / issues.length) : 0;
+    const generalMetrics = [
+      ['Total de issues', issues.length],
+      ['Issues cerrados', closedCount],
+      ['Issues abiertos', issues.length - closedCount],
+      ['Porcentaje cerrado', `${closedPercent}%`],
+      ['Evidencias adjuntas', evidenceCount]
+    ];
+    const metricSections = [
+      {title:'Por estado', startColumn:'D', counts:statusCounts},
+      {title:'Por severidad', startColumn:'G', counts:severityCounts},
+      {title:'Por módulo', startColumn:'J', counts:moduleCounts}
+    ];
+    const metricCell = (reference, value, style) => `<c r="${reference}" s="${style}" t="inlineStr"><is><t xml:space="preserve">${excelXmlText(value)}</t></is></c>`;
+    const metricRows = [];
+    const titleCells = metricSections.map((section, index) => metricCell(`${section.startColumn}1`, section.title, 4));
+    metricRows.push(`<row r="1" ht="26" customHeight="1">${metricCell('A1', 'Resumen general', 4)}${titleCells.join('')}</row>`);
+    const headerCells = [metricCell('A2', 'Indicador', 5), metricCell('B2', 'Valor', 5)];
+    metricSections.forEach(section => {
+      const start = section.startColumn.charCodeAt(0);
+      headerCells.push(metricCell(`${String.fromCharCode(start)}2`, 'Categoría', 5));
+      headerCells.push(metricCell(`${String.fromCharCode(start + 1)}2`, 'Cantidad', 5));
+    });
+    metricRows.push(`<row r="2">${headerCells.join('')}</row>`);
+    const maxRows = Math.max(generalMetrics.length, ...metricSections.map(section => section.counts.size));
+    for(let index = 0; index < maxRows; index++){
+      const rowNumber = index + 3;
+      const rowCells = [];
+      const general = generalMetrics[index];
+      if(general){
+        rowCells.push(metricCell(`A${rowNumber}`, general[0], 6));
+        rowCells.push(metricCell(`B${rowNumber}`, general[1], 6));
+      }
+      metricSections.forEach(section => {
+        const entry = [...section.counts.entries()][index];
+        if(!entry) return;
+        const start = section.startColumn.charCodeAt(0);
+        rowCells.push(metricCell(`${String.fromCharCode(start)}${rowNumber}`, entry[0], 6));
+        rowCells.push(metricCell(`${String.fromCharCode(start + 1)}${rowNumber}`, entry[1], 6));
+      });
+      metricRows.push(`<row r="${rowNumber}">${rowCells.join('')}</row>`);
+    }
+
+    const metricsXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><cols><col min="1" max="1" width="24" customWidth="1"/><col min="2" max="11" width="18" customWidth="1"/></cols><sheetViews><sheetView workbookViewId="0"><pane ySplit="2" topLeftCell="A3" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><sheetData>${metricRows.join('')}</sheetData></worksheet>`;
+    const drawingXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">${drawingParts.join('')}</xdr:wsDr>`;
+    const drawingRelationships = media.map((item, index) => `<Relationship Id="rId${index + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/${item.name.split('/').pop()}"/>`).join('');
+
+    const workbookXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Issues" sheetId="1" r:id="rId1"/><sheet name="Metricas" sheetId="2" r:id="rId3"/></sheets></workbook>`;
+    const stylesXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="3"><font/><font><b/></font><font><b/><color rgb="FFFFFFFF"/></font></fonts><fills count="5"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFE8A33D"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FF142534"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFD8EAF3"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="2"><border/><border><left style="thin"><color rgb="FFD4DEE7"/></left><right style="thin"><color rgb="FFD4DEE7"/></right><top style="thin"><color rgb="FFD4DEE7"/></top><bottom style="thin"><color rgb="FFD4DEE7"/></bottom></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="7"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment wrapText="1"/></xf><xf numFmtId="0" fontId="2" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf><xf numFmtId="0" fontId="2" fillId="3" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="left" vertical="center"/></xf><xf numFmtId="0" fontId="1" fillId="4" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center"/></xf><xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment vertical="top"/></xf></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`;
+    const entries = [
+      {name:'[Content_Types].xml', data:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Default Extension="jpg" ContentType="image/jpeg"/><Default Extension="jpeg" ContentType="image/jpeg"/><Default Extension="gif" ContentType="image/gif"/><Default Extension="bmp" ContentType="image/bmp"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/><Override PartName="/xl/drawings/drawing1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/></Types>'},
+      {name:'_rels/.rels', data:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>'},
+      {name:'xl/workbook.xml', data:workbookXml},
+      {name:'xl/_rels/workbook.xml.rels', data:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/></Relationships>'},
+      {name:'xl/styles.xml', data:stylesXml},
+      {name:'xl/worksheets/sheet1.xml', data:sheetXml},
+      {name:'xl/worksheets/sheet2.xml', data:metricsXml},
+      {name:'xl/worksheets/_rels/sheet1.xml.rels', data:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing1.xml"/></Relationships>'},
+      {name:'xl/drawings/drawing1.xml', data:drawingXml},
+      {name:'xl/drawings/_rels/drawing1.xml.rels', data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${drawingRelationships}</Relationships>`},
+      ...media
+    ];
+
+    const blob = excelCreateZip(entries);
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `issues-${new Date().toISOString().slice(0, 10)}.xlsx`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }catch(error){
+    console.error('Error creando Excel:', error);
+    alert('No se pudo crear el archivo Excel.');
+  }finally{
+    button.textContent = originalText;
+    button.disabled = false;
+  }
+}
+
+async function downloadExcelWorkbook(){
+  const button = document.getElementById('btnExportExcel');
+  const originalText = button.textContent;
+  button.disabled = true;
+  button.textContent = 'Preparando Excel...';
+  try{
+    const response = await fetch('/api/export-excel', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({issues, images: imagesCache})
+    });
+    if(!response.ok){
+      let message = 'No se pudo generar el archivo Excel.';
+      try{ message = (await response.json()).error || message; }catch{}
+      throw new Error(message);
+    }
+    const blob = await response.blob();
+    const disposition = response.headers.get('Content-Disposition') || '';
+    const filenameMatch = /filename="([^"]+)"/.exec(disposition);
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = filenameMatch ? filenameMatch[1] : `issues-${new Date().toISOString().slice(0, 10)}.xlsx`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+  }catch(error){
+    console.error('Error creando Excel:', error);
+    alert(error.message || 'No se pudo crear el archivo Excel.');
+  }finally{
+    button.textContent = originalText;
+    button.disabled = false;
+  }
+}
+
+
+let viewerImages = [];
+let viewerIndex = 0;
+
+function renderViewer(){
+  const image = document.getElementById('lightboxImg');
+  image.src = viewerImages[viewerIndex] || '';
+  document.getElementById('lightboxTitle').textContent = `${viewerIndex + 1} de ${viewerImages.length}`;
+  document.getElementById('viewerPrev').disabled = viewerImages.length < 2;
+  document.getElementById('viewerNext').disabled = viewerImages.length < 2;
+}
+
 function openLightbox(src){
-  document.getElementById('lightboxImg').src = src;
+  viewerImages = [src];
+  viewerIndex = 0;
+  document.getElementById('lightboxImg').classList.remove('full-size');
+  renderViewer();
   document.getElementById('lightbox').classList.add('show');
 }
-document.getElementById('lightbox').addEventListener('click', () => {
-  document.getElementById('lightbox').classList.remove('show');
-});
+
 window.openLightbox = openLightbox;
+document.getElementById('viewerClose').addEventListener('click', () => document.getElementById('lightbox').classList.remove('show'));
+document.getElementById('viewerFit').addEventListener('click', () => {
+  document.getElementById('lightboxImg').classList.toggle('full-size');
+});
+document.getElementById('viewerPrev').addEventListener('click', () => {
+  viewerIndex = (viewerIndex - 1 + viewerImages.length) % viewerImages.length;
+  renderViewer();
+});
+document.getElementById('viewerNext').addEventListener('click', () => {
+  viewerIndex = (viewerIndex + 1) % viewerImages.length;
+  renderViewer();
+});
+document.addEventListener('keydown', (event) => {
+  if(!document.getElementById('lightbox').classList.contains('show')) return;
+  if(event.key === 'Escape') document.getElementById('lightbox').classList.remove('show');
+  if(event.key === 'ArrowLeft') document.getElementById('viewerPrev').click();
+  if(event.key === 'ArrowRight') document.getElementById('viewerNext').click();
+});
 
 function renderUploadPreview(){
   const wrap = document.getElementById('uploadPreviewWrap');
   const zoneWrap = document.getElementById('uploadZoneWrap');
+  const captureButton = document.getElementById('btnCaptureScreen');
   if(pendingImages.length){
-    zoneWrap.style.display = 'none';
+    zoneWrap.style.display = 'block';
+    captureButton.disabled = pendingImages.length >= MAX_IMAGES_PER_ISSUE;
     wrap.innerHTML = `<div class="upload-preview"><div class="thumb-stack">${pendingImages.map((src, idx) => `
       <div class="thumb-item">
         <img class="thumb is-large" src="${src}">
@@ -406,6 +957,7 @@ function renderUploadPreview(){
     });
   } else {
     zoneWrap.style.display = 'block';
+    captureButton.disabled = false;
     wrap.innerHTML = '';
   }
 }
@@ -459,6 +1011,216 @@ document.getElementById('f_image').addEventListener('change', async (e) => {
   }
 });
 
+function returnCaptureFocus(){
+  [0, 150, 500, 1200].forEach(delay => {
+    setTimeout(() => {
+      window.focus();
+      if(document.hasFocus()){
+        const modal = document.getElementById('cropOverlay');
+        if(modal) modal.scrollIntoView({block:'center'});
+      }
+    }, delay);
+  });
+}
+
+function cropCapturedImage(sourceDataUrl){
+  return new Promise((resolve) => {
+    const overlay = document.getElementById('cropOverlay');
+    const canvas = document.getElementById('cropCanvas');
+    overlay.querySelector('h2').textContent = 'Selecciona el área de la ventana compartida';
+    const accept = document.getElementById('btnCropAccept');
+    const cancel = document.getElementById('btnCropCancel');
+    const context = canvas.getContext('2d');
+    const image = new Image();
+    let start = null;
+    let selection = null;
+
+    const cleanup = () => {
+      canvas.onpointerdown = null;
+      canvas.onpointermove = null;
+      canvas.onpointerup = null;
+      accept.onclick = null;
+      cancel.onclick = null;
+      overlay.classList.remove('show');
+    };
+
+    const draw = () => {
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      if(!selection) return;
+      const {x, y, width, height} = selection;
+      context.save();
+      context.fillStyle = 'rgba(0,0,0,.55)';
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.clearRect(x, y, width, height);
+      context.drawImage(image, x, y, width, height, x, y, width, height);
+      context.strokeStyle = '#f59e0b';
+      context.lineWidth = 2;
+      context.setLineDash([8, 5]);
+      context.strokeRect(x, y, width, height);
+      context.restore();
+    };
+
+    const pointFromEvent = (event) => {
+      const rect = canvas.getBoundingClientRect();
+      return {
+        x: (event.clientX - rect.left) * canvas.width / rect.width,
+        y: (event.clientY - rect.top) * canvas.height / rect.height
+      };
+    };
+
+    image.onload = () => {
+      canvas.width = image.naturalWidth;
+      canvas.height = image.naturalHeight;
+      draw();
+      overlay.classList.add('show');
+    };
+
+    canvas.onpointerdown = (event) => {
+      start = pointFromEvent(event);
+      selection = null;
+      accept.disabled = true;
+      canvas.setPointerCapture(event.pointerId);
+    };
+    canvas.onpointermove = (event) => {
+      if(!start) return;
+      const point = pointFromEvent(event);
+      const x = Math.max(0, Math.min(start.x, point.x));
+      const y = Math.max(0, Math.min(start.y, point.y));
+      const width = Math.min(canvas.width, Math.max(start.x, point.x)) - x;
+      const height = Math.min(canvas.height, Math.max(start.y, point.y)) - y;
+      selection = {x, y, width, height};
+      accept.disabled = width < 4 || height < 4;
+      draw();
+    };
+    canvas.onpointerup = (event) => {
+      canvas.releasePointerCapture(event.pointerId);
+      start = null;
+    };
+
+    accept.onclick = () => {
+      if(!selection) return;
+      const {x, y, width, height} = selection;
+      const cropped = document.createElement('canvas');
+      cropped.width = Math.round(width);
+      cropped.height = Math.round(height);
+      cropped.getContext('2d').drawImage(canvas, x, y, width, height, 0, 0, cropped.width, cropped.height);
+      const dataUrl = cropped.toDataURL('image/jpeg', 0.72);
+      cleanup();
+      resolve(dataUrl);
+    };
+    cancel.onclick = () => {
+      cleanup();
+      resolve(null);
+    };
+
+    image.src = sourceDataUrl;
+  });
+}
+
+let captureControlWindow = null;
+
+function openCaptureControl(){
+  if(pendingImages.length >= MAX_IMAGES_PER_ISSUE){
+    alert(`Ya alcanzaste el máximo de ${MAX_IMAGES_PER_ISSUE} imágenes.`);
+    return;
+  }
+  captureControlWindow = window.open(
+    'capture.html',
+    'issueScreenCapture',
+    'popup=yes,width=1100,height=780,resizable=yes'
+  );
+  if(!captureControlWindow){
+    document.getElementById('captureStatus').textContent = 'Usando captura directa porque el navegador bloqueó la ventana auxiliar.';
+    captureScreen();
+    return;
+  }
+  document.getElementById('captureStatus').textContent = 'Ventana auxiliar abierta. Selecciona qué compartir y pulsa “Tomar captura”.';
+}
+
+async function captureScreen(){
+  if(pendingImages.length >= MAX_IMAGES_PER_ISSUE){
+    alert(`Ya alcanzaste el máximo de ${MAX_IMAGES_PER_ISSUE} imágenes.`);
+    return;
+  }
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia){
+    alert('La captura de pantalla no está disponible en este navegador. Usa Chrome o Edge actualizado.');
+    return;
+  }
+
+  const button = document.getElementById('btnCaptureScreen');
+  const status = document.getElementById('captureStatus');
+  let stream;
+  try{
+    button.disabled = true;
+    status.textContent = 'Selecciona la ventana o pestaña; el recorte aparecerá inmediatamente…';
+    const options = {
+      video: { frameRate: 15 },
+      audio: false,
+      selfBrowserSurface: 'exclude'
+    };
+    if (typeof CaptureController === 'function') {
+      const controller = new CaptureController();
+      if (typeof controller.setFocusBehavior === 'function') {
+        controller.setFocusBehavior('no-focus-change');
+      }
+      options.controller = controller;
+    }
+    stream = await navigator.mediaDevices.getDisplayMedia(options);
+
+    returnCaptureFocus();
+
+    const video = document.createElement('video');
+    video.srcObject = stream;
+    video.muted = true;
+    video.playsInline = true;
+    await video.play();
+
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const context = canvas.getContext('2d');
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    returnCaptureFocus();
+    const selectedDataUrl = await cropCapturedImage(canvas.toDataURL('image/jpeg', 0.72));
+    if(selectedDataUrl){
+      pendingImages.push(selectedDataUrl);
+      renderUploadPreview();
+      status.textContent = `Captura ${pendingImages.length} de ${MAX_IMAGES_PER_ISSUE} agregada. Puedes capturar otra.`;
+    } else {
+      status.textContent = 'Captura cancelada.';
+    }
+  }catch(err){
+    if(err && err.name !== 'NotAllowedError'){
+      console.error('Error capturando pantalla:', err);
+      alert('No se pudo capturar la pantalla. Intenta de nuevo.');
+    }
+  }finally{
+    if(stream) stream.getTracks().forEach(track => track.stop());
+    button.disabled = pendingImages.length >= MAX_IMAGES_PER_ISSUE;
+    if(pendingImages.length >= MAX_IMAGES_PER_ISSUE){
+      status.textContent = `Máximo alcanzado: ${MAX_IMAGES_PER_ISSUE} imágenes.`;
+    }
+  }
+}
+
+document.getElementById('btnCaptureScreen').addEventListener('click', openCaptureControl);
+
+window.addEventListener('message', (event) => {
+  if(event.origin !== location.origin || event.data?.source !== 'issue-capture') return;
+  if(event.data.type === 'capture-result' && pendingImages.length < MAX_IMAGES_PER_ISSUE){
+    pendingImages.push(event.data.dataUrl);
+    renderUploadPreview();
+    document.getElementById('captureStatus').textContent = `Captura ${pendingImages.length} de ${MAX_IMAGES_PER_ISSUE} enviada. Puedes tomar otra.`;
+  }
+  if(event.data.type === 'capture-cancelled'){
+    document.getElementById('captureStatus').textContent = 'Captura cancelada. Puedes volver a intentarlo.';
+  }
+  if(event.data.type === 'capture-closed'){
+    document.getElementById('captureStatus').textContent = 'Ventana de captura cerrada.';
+  }
+});
+
 function render(){
   renderSummary();
   if(currentView === 'table') renderTable(); else renderKanban();
@@ -501,7 +1263,7 @@ function renderTable(){
     <div class="table-panel">
     <table>
       <thead><tr>
-        <th>Test ID</th><th>Formulario</th><th>Observación</th><th class="thumb-cell">Evidencia</th><th>Severity</th><th>Priority</th><th>Status</th><th>Fecha</th><th></th>
+        <th>Código del caso</th><th>Título del hallazgo</th><th>Descripción del hallazgo</th><th class="thumb-cell">Evidencia</th><th>Severity</th><th>Priority</th><th>Status</th><th>Fecha</th><th></th>
       </tr></thead>
       <tbody>
         ${list.map(i => {
@@ -516,7 +1278,14 @@ function renderTable(){
             <td>${escapeHtml(i.priority)}</td>
             <td><span class="badge ${i.status}">${STATUS_LABEL[i.status]}</span></td>
             <td class="testid">${escapeHtml(i.fecha)}</td>
-            <td><div class="row-actions"><button onclick="openEdit('${i.id}')">Editar</button></div></td>
+            <td><div class="row-actions">
+              <button onclick="openEdit('${i.id}')">Editar</button>
+              <button class="icon-action" onclick="openQuickComment('${i.id}')" title="Agregar comentario" aria-label="Agregar comentario al issue ${escapeHtml(i.testid)}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/><path d="M8 9h8M8 13h5"/> 
+                </svg>
+              </button>
+            </div></td>
           </tr>`;
         }).join('')}
       </tbody>
@@ -530,13 +1299,13 @@ function renderKanban(){
   el.innerHTML = `<div class="kanban">
     ${STATUS_ORDER.map(s => {
       const items = list.filter(i => i.status === s);
-      return `<div class="kcol">
+      return `<div class="kcol" data-status="${s}" ondragover="kanbanDragOver(event)" ondragleave="kanbanDragLeave(event)" ondrop="kanbanDrop(event)">
         <div class="kcol-head"><span>${STATUS_LABEL[s]}</span><span class="kcol-count">${items.length}</span></div>
-        <div class="kcards">
+        <div class="kcards" data-status="${s}">
           ${items.map(i => {
             const imgs = imagesCache[i.id] || [];
             return `
-            <div class="kcard" onclick="openEdit('${i.id}')">
+            <div class="kcard" draggable="true" data-issue-id="${i.id}" ondragstart="kanbanDragStart(event)" ondragend="kanbanDragEnd(event)" onclick="if(!suppressKanbanClick) openEdit('${i.id}')">
               ${imgs.length ? `<div class="thumb-stack">${imgs.slice(0, 2).map((src, idx) => `<img class="kcard-img" src="${src}" onclick="event.stopPropagation(); openImage('${i.id}', ${idx})">`).join('')}</div>` : ''}
               <span class="testid">${escapeHtml(i.testid)}</span>
               <div class="kform">${escapeHtml(i.formulario)}</div>
@@ -553,52 +1322,229 @@ function escapeHtml(s){
   return (s||'').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 }
 
+function formatTrackingDate(value){
+  const date = value ? new Date(value) : new Date();
+  return new Intl.DateTimeFormat('es-CO', { dateStyle: 'medium', timeStyle: 'short' }).format(date);
+}
+
+function renderTracking(){
+  const list = document.getElementById('trackingList');
+  if(!pendingNovedades.length){
+    list.innerHTML = '<div class="tracking-empty">Aún no hay novedades registradas.</div>';
+    return;
+  }
+  list.innerHTML = pendingNovedades.map((entry, index) => {
+    const text = typeof entry === 'string' ? entry : entry.text;
+    const date = typeof entry === 'string' ? '' : entry.createdAt;
+    const type = typeof entry === 'string' ? 'Novedad' : (entry.type || 'Novedad');
+    return `<div class="tracking-entry">
+      <div class="tracking-meta"><span class="tracking-type ${type}">${type}</span><span>${date ? formatTrackingDate(date) : 'Registro anterior'}</span></div>
+      <div class="tracking-text">${escapeHtml(text)}</div>
+    </div>`;
+  }).join('');
+  list.scrollTop = list.scrollHeight;
+}
+
+function addNovedad(){
+  const input = document.getElementById('f_novedad');
+  const typeSelect = document.getElementById('f_novedad_tipo');
+  const text = input.value.trim();
+  if(!text) return;
+  const type = typeSelect.value;
+  pendingNovedades.push({ text, type, createdAt: new Date().toISOString() });
+  if(type === 'Solución') document.getElementById('f_status').value = 'Closed';
+  input.value = '';
+  renderTracking();
+  input.focus();
+}
+
 function openNew(){
   editingId = null;
   pendingImages = [];
+  pendingNovedades = [];
   document.getElementById('modalTitle').textContent = 'Registrar issue';
   document.getElementById('issueForm').reset();
-  document.getElementById('f_modulo').value = 'Activos fijos';
+  renderModuleOptions(modules[0] && modules[0].name);
+  document.getElementById('f_testid').value = nextTestId(document.getElementById('f_modulo').value);
   document.getElementById('btnDelete').style.display = 'none';
   document.getElementById('btnSave').textContent = 'Guardar issue';
+  document.getElementById('f_novedad').value = '';
+  document.getElementById('f_novedad_tipo').value = 'Novedad';
+  renderTracking();
   renderUploadPreview();
   document.getElementById('overlay').classList.add('show');
 }
 
-window.openEdit = function(id){
+window.openEdit = function(id, focusTracking=false){
   const i = issues.find(x => x.id === id);
   if(!i) return;
   editingId = id;
   pendingImages = [...(imagesCache[id] || [])];
+  pendingNovedades = Array.isArray(i.novedades) ? i.novedades.map(entry => ({...entry})) : [];
   document.getElementById('modalTitle').textContent = 'Editar issue';
+  renderModuleOptions(i.modulo);
   document.getElementById('f_testid').value = i.testid;
-  document.getElementById('f_modulo').value = i.modulo;
   document.getElementById('f_formulario').value = i.formulario;
   document.getElementById('f_obs').value = i.obs;
   document.getElementById('f_status').value = i.status;
   document.getElementById('f_severity').value = i.severity;
   document.getElementById('f_priority').value = i.priority;
   document.getElementById('f_assigned').value = i.assigned || '';
-  document.getElementById('f_solucion').value = i.solucion || '';
+  if(!pendingNovedades.length && i.solucion) pendingNovedades = [{ text: i.solucion, type: 'Novedad', legacy: true }];
+  document.getElementById('f_novedad').value = '';
+  document.getElementById('f_novedad_tipo').value = 'Novedad';
+  renderTracking();
   document.getElementById('btnDelete').style.display = 'inline-block';
   document.getElementById('btnSave').textContent = 'Guardar cambios';
   renderUploadPreview();
   document.getElementById('overlay').classList.add('show');
+  if(focusTracking){
+    requestAnimationFrame(() => {
+      const field = document.querySelector('.tracking-field');
+      field.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      document.getElementById('f_novedad').focus({ preventScroll: true });
+    });
+  }
 }
 
 function closeModal(){ document.getElementById('overlay').classList.remove('show'); }
 
+window.openQuickComment = function(id){
+  const issue = issues.find(item => item.id === id);
+  if(!issue) return;
+  quickCommentIssueId = id;
+  document.getElementById('quickCommentIssue').textContent = `${issue.testid} · ${issue.formulario}`;
+  document.getElementById('quickCommentType').value = 'Seguimiento';
+  document.getElementById('quickCommentText').value = '';
+  document.getElementById('quickCommentOverlay').classList.add('show');
+  requestAnimationFrame(() => document.getElementById('quickCommentText').focus());
+}
+
+function closeQuickComment(){
+  document.getElementById('quickCommentOverlay').classList.remove('show');
+  quickCommentIssueId = null;
+}
+
+async function saveQuickComment(){
+  const issue = issues.find(item => item.id === quickCommentIssueId);
+  const text = document.getElementById('quickCommentText').value.trim();
+  const type = document.getElementById('quickCommentType').value;
+  if(!issue || !text) return;
+  const entry = { text, type, createdAt: new Date().toISOString() };
+  const novedades = Array.isArray(issue.novedades) ? issue.novedades.map(item => ({...item})) : [];
+  novedades.push(entry);
+  issue.novedades = novedades;
+  issue.solucion = novedades.map(item => typeof item === 'string' ? item : item.text).join('\n\n');
+  if(type === 'Solución') issue.status = 'Closed';
+  const button = document.getElementById('btnQuickCommentSave');
+  button.disabled = true;
+  button.textContent = 'Guardando...';
+  try{
+    await saveIssues();
+    closeQuickComment();
+    render();
+  }catch(error){
+    console.error('Error guardando comentario:', error);
+    alert('No se pudo guardar el comentario.');
+  }finally{
+    button.disabled = false;
+    button.textContent = 'Guardar comentario';
+  }
+}
+
+function moduleIsUsed(name){
+  return issues.some(issue => issue.modulo === name);
+}
+
+function renderModules(){
+  document.getElementById('moduleList').innerHTML = modules.map(module => {
+    const used = moduleIsUsed(module.name);
+    const count = issues.filter(issue => issue.modulo === module.name).length;
+    const canDelete = !used && modules.length > 1;
+    return `<div class="module-row">
+      <strong>${escapeHtml(module.name)}</strong>
+      <span class="module-prefix">${escapeHtml(module.prefix)}-${String(count + 1).padStart(3, '0')} siguiente</span>
+      <button class="module-delete" data-module="${escapeHtml(module.name)}" ${canDelete ? '' : 'disabled title="Debe conservar al menos un módulo y los módulos con issues no se pueden eliminar"'}>Eliminar</button>
+    </div>`;
+  }).join('');
+}
+
+function openModules(doc){
+  doc.getElementById('moduleName').value = '';
+  doc.getElementById('modulePrefixPreview').textContent = '—';
+  renderModules();
+  doc.getElementById('modulesOverlay').classList.add('show');
+}
+
 window.openImage = function(id, index){
-  const imgs = imagesCache[id] || [];
-  if(imgs[index]) openLightbox(imgs[index]);
+  viewerImages = imagesCache[id] || [];
+  viewerIndex = index;
+  if(viewerImages[index]){
+    document.getElementById('lightboxImg').classList.remove('full-size');
+    renderViewer();
+    document.getElementById('lightbox').classList.add('show');
+  }
 };
 
 document.getElementById('btnNew').addEventListener('click', openNew);
+document.getElementById('btnModules').addEventListener('click', event => openModules(event.target.ownerDocument));
+document.getElementById('btnCloseModules').addEventListener('click', () => document.getElementById('modulesOverlay').classList.remove('show'));
+document.getElementById('modulesOverlay').addEventListener('click', e => { if(e.target.id === 'modulesOverlay') e.target.classList.remove('show'); });
+document.getElementById('moduleName').addEventListener('input', e => {
+  document.getElementById('modulePrefixPreview').textContent = e.target.value.trim() ? uniqueModulePrefix(e.target.value) : '—';
+});
+document.getElementById('btnAddModule').addEventListener('click', async () => {
+  const name = document.getElementById('moduleName').value.trim();
+  if(!name){ alert('Escribe el nombre del módulo.'); return; }
+  if(modules.some(module => module.name.toLocaleLowerCase('es') === name.toLocaleLowerCase('es'))){
+    alert('Ya existe un módulo con ese nombre.');
+    return;
+  }
+  modules.push({ name, prefix: uniqueModulePrefix(name) });
+  await saveModules();
+  renderModuleOptions(name);
+  document.getElementById('moduleName').value = '';
+  document.getElementById('modulePrefixPreview').textContent = '—';
+  renderModules();
+});
+document.getElementById('moduleList').addEventListener('click', async e => {
+  const button = e.target.closest('[data-module]');
+  if(!button || button.disabled) return;
+  const name = button.dataset.module;
+  if(!confirm(`¿Eliminar el módulo "${name}"?`)) return;
+  modules = modules.filter(module => module.name !== name);
+  await saveModules();
+  renderModuleOptions(modules[0] && modules[0].name);
+  renderModules();
+});
+document.getElementById('btnAddNovedad').addEventListener('click', addNovedad);
+document.getElementById('btnQuickCommentSave').addEventListener('click', saveQuickComment);
+document.getElementById('btnQuickCommentCancel').addEventListener('click', closeQuickComment);
+document.getElementById('quickCommentOverlay').addEventListener('click', event => {
+  if(event.target.id === 'quickCommentOverlay') closeQuickComment();
+});
+document.getElementById('quickCommentText').addEventListener('keydown', event => {
+  if((event.ctrlKey || event.metaKey) && event.key === 'Enter') saveQuickComment();
+});
+document.getElementById('f_novedad').addEventListener('keydown', event => {
+  if((event.ctrlKey || event.metaKey) && event.key === 'Enter') addNovedad();
+});
+document.getElementById('f_modulo').addEventListener('change', () => {
+  if(!editingId) document.getElementById('f_testid').value = nextTestId(document.getElementById('f_modulo').value);
+});
 document.getElementById('btnCancel').addEventListener('click', closeModal);
 document.getElementById('overlay').addEventListener('click', e => { if(e.target.id === 'overlay') closeModal(); });
 
 document.getElementById('issueForm').addEventListener('submit', async (e) => {
   e.preventDefault();
+  const draftNovedad = document.getElementById('f_novedad').value.trim();
+  const draftType = document.getElementById('f_novedad_tipo').value;
+  if(draftNovedad){
+    pendingNovedades.push({ text: draftNovedad, type: draftType, createdAt: new Date().toISOString() });
+    if(draftType === 'Solución') document.getElementById('f_status').value = 'Closed';
+  }
+  document.getElementById('f_novedad').value = '';
+  document.getElementById('f_novedad_tipo').value = 'Novedad';
   const data = {
     testid: document.getElementById('f_testid').value.trim(),
     modulo: document.getElementById('f_modulo').value.trim(),
@@ -608,7 +1554,8 @@ document.getElementById('issueForm').addEventListener('submit', async (e) => {
     severity: document.getElementById('f_severity').value,
     priority: document.getElementById('f_priority').value,
     assigned: document.getElementById('f_assigned').value.trim(),
-    solucion: document.getElementById('f_solucion').value.trim(),
+    novedades: pendingNovedades.map(entry => ({ ...entry })),
+    solucion: pendingNovedades.map(entry => typeof entry === 'string' ? entry : entry.text).join('\n\n'),
     images: pendingImages.slice(),
     hasImage: pendingImages.length > 0,
   };
@@ -689,8 +1636,65 @@ document.getElementById('viewKanbanBtn').addEventListener('click', () => {
   render();
 });
 document.getElementById('search').addEventListener('input', render);
+document.getElementById('btnExportExcel').addEventListener('click', downloadExcelWorkbook);
 
-loadIssues();
+const kanbanView = document.getElementById('kanbanView');
+let draggedIssueId = null;
+let suppressKanbanClick = false;
+
+window.kanbanDragStart = function(event){
+  const card = event.target.closest('.kcard');
+  if(!card) return;
+  draggedIssueId = card.dataset.issueId;
+  card.classList.add('dragging');
+  event.dataTransfer.effectAllowed = 'move';
+  event.dataTransfer.setData('text/plain', draggedIssueId);
+};
+window.kanbanDragEnd = function(event){
+  event.target.closest('.kcard')?.classList.remove('dragging');
+  kanbanView.querySelectorAll('.kcol.drag-over').forEach(column => column.classList.remove('drag-over'));
+  draggedIssueId = null;
+};
+window.kanbanDragOver = function(event){
+  const column = event.target.closest('.kcol');
+  if(!column) return;
+  event.preventDefault();
+  event.dataTransfer.dropEffect = 'move';
+  kanbanView.querySelectorAll('.kcol.drag-over').forEach(item => {
+    if(item !== column) item.classList.remove('drag-over');
+  });
+  column.classList.add('drag-over');
+};
+window.kanbanDragLeave = function(event){
+  const column = event.target.closest('.kcol');
+  if(column && !column.contains(event.relatedTarget)) column.classList.remove('drag-over');
+};
+window.kanbanDrop = async function(event){
+  const column = event.target.closest('.kcol');
+  if(!column) return;
+  event.preventDefault();
+  const issueId = draggedIssueId || event.dataTransfer.getData('text/plain');
+  const issue = issues.find(item => item.id === issueId);
+  const status = column.dataset.status;
+  if(!issue || issue.status === status){
+    column.classList.remove('drag-over');
+    return;
+  }
+  suppressKanbanClick = true;
+  issue.status = status;
+  try{
+    await saveIssues();
+    render();
+  }catch(error){
+    console.error('Error moviendo el issue:', error);
+    alert('No se pudo cambiar el estado del issue.');
+  }finally{
+    column.classList.remove('drag-over');
+    setTimeout(() => { suppressKanbanClick = false; }, 200);
+  }
+};
+
+Promise.all([loadModules(), loadIssues()]);
 </script>
 </body>
 </html>

@@ -1,0 +1,68 @@
+- generic [ref=f6e2]:
+  - generic [ref=f6e3]:
+    - generic [ref=f6e4]:
+      - generic [ref=f6e5]: Panamericana · Módulo Activos Fijos
+      - heading "Bitácora de Issues / QA" [level=1] [ref=f6e6]
+      - generic [ref=f6e7]: "Última actualización: 27/10/2026, 8:24:50 p. m."
+    - generic [ref=f6e8]:
+      - button "Descargar Excel" [ref=f6e9] [cursor=pointer]
+      - button "Módulos" [ref=f6e10] [cursor=pointer]
+      - button "+ Registrar issue" [ref=f6e11] [cursor=pointer]
+  - generic [ref=f6e12]:
+    - generic [ref=f6e13]:
+      - generic [ref=f6e14]: "1"
+      - generic [ref=f6e15]: Open
+    - generic [ref=f6e16]:
+      - generic [ref=f6e17]: "0"
+      - generic [ref=f6e18]: Blocked
+    - generic [ref=f6e19]:
+      - generic [ref=f6e20]: "0"
+      - generic [ref=f6e21]: Ready for Retest
+    - generic [ref=f6e22]:
+      - generic [ref=f6e23]: "0"
+      - generic [ref=f6e24]: In Progress
+    - generic [ref=f6e25]:
+      - generic [ref=f6e26]: "0"
+      - generic [ref=f6e27]: Closed
+    - generic [ref=f6e28]:
+      - generic [ref=f6e29]: "0"
+      - generic [ref=f6e30]: Re-Open
+    - generic [ref=f6e31]:
+      - generic [ref=f6e32]: "1"
+      - generic [ref=f6e33]: Total
+  - generic [ref=f6e34]:
+    - generic [ref=f6e35]:
+      - button "Tabla" [ref=f6e36] [cursor=pointer]
+      - button "Kanban" [ref=f6e37] [cursor=pointer]
+    - textbox "Buscar por código del caso, título del hallazgo u observación..." [ref=f6e38]
+  - table [ref=f6e41]:
+    - rowgroup [ref=f6e42]:
+      - row [ref=f6e43]:
+        - columnheader "Código del caso" [ref=f6e44]
+        - columnheader "Título del hallazgo" [ref=f6e45]
+        - columnheader "Descripción del hallazgo" [ref=f6e46]
+        - columnheader "Evidencia" [ref=f6e47]
+        - columnheader "Severity" [ref=f6e48]
+        - columnheader "Priority" [ref=f6e49]
+        - columnheader "Status" [ref=f6e50]
+        - columnheader "Fecha" [ref=f6e51]
+        - columnheader [ref=f6e52]
+    - rowgroup [ref=f6e53]:
+      - row [ref=f6e54]:
+        - cell "EX-001" [ref=f6e55]
+        - cell "Validación exportación" [ref=f6e56]
+        - cell "Prueba con cuatro evidencias" [ref=f6e57]
+        - cell [ref=f6e58]:
+          - generic [ref=f6e59]:
+            - img [ref=f6e60] [cursor=pointer]
+            - img [ref=f6e61] [cursor=pointer]
+            - img [ref=f6e62] [cursor=pointer]
+        - cell "Alta" [ref=f6e63]
+        - cell "Media" [ref=f6e64]
+        - cell "Open" [ref=f6e65]
+        - cell [ref=f6e67]
+        - cell [ref=f6e68]:
+          - generic [ref=f6e69]:
+            - button "Editar" [ref=f6e70] [cursor=pointer]
+            - button "Agregar comentario al issue EX-001" [ref=f6e71] [cursor=pointer]
+  - generic [ref=f6e75]: Datos visibles para cualquier persona con este enlace · Actualización en tiempo real

@@ -1,0 +1,77 @@
+- generic [ref=f15e2]:
+  - generic [ref=f15e3]:
+    - generic [ref=f15e4]:
+      - generic [ref=f15e5]: Panamericana · Módulo Activos Fijos
+      - heading "Bitácora de Issues / QA" [level=1] [ref=f15e6]
+      - generic [ref=f15e7]: "Última actualización: 27/10/2026, 8:43:25 p. m."
+    - generic [ref=f15e8]:
+      - button "Descargar Excel" [ref=f15e9] [cursor=pointer]
+      - button "Módulos" [ref=f15e10] [cursor=pointer]
+      - button "+ Registrar issue" [ref=f15e11] [cursor=pointer]
+  - generic [ref=f15e12]:
+    - generic [ref=f15e13]:
+      - generic [ref=f15e14]: "2"
+      - generic [ref=f15e15]: Open
+    - generic [ref=f15e16]:
+      - generic [ref=f15e17]: "0"
+      - generic [ref=f15e18]: Blocked
+    - generic [ref=f15e19]:
+      - generic [ref=f15e20]: "0"
+      - generic [ref=f15e21]: Ready for Retest
+    - generic [ref=f15e22]:
+      - generic [ref=f15e23]: "0"
+      - generic [ref=f15e24]: In Progress
+    - generic [ref=f15e25]:
+      - generic [ref=f15e26]: "0"
+      - generic [ref=f15e27]: Closed
+    - generic [ref=f15e28]:
+      - generic [ref=f15e29]: "0"
+      - generic [ref=f15e30]: Re-Open
+    - generic [ref=f15e31]:
+      - generic [ref=f15e32]: "2"
+      - generic [ref=f15e33]: Total
+  - generic [ref=f15e34]:
+    - generic [ref=f15e35]:
+      - button "Tabla" [ref=f15e36] [cursor=pointer]
+      - button "Kanban" [ref=f15e37] [cursor=pointer]
+    - textbox "Buscar por código del caso, título del hallazgo u observación..." [ref=f15e38]
+  - table [ref=f15e41]:
+    - rowgroup [ref=f15e42]:
+      - row [ref=f15e43]:
+        - columnheader "Código del caso" [ref=f15e44]
+        - columnheader "Título del hallazgo" [ref=f15e45]
+        - columnheader "Descripción del hallazgo" [ref=f15e46]
+        - columnheader "Evidencia" [ref=f15e47]
+        - columnheader "Severity" [ref=f15e48]
+        - columnheader "Priority" [ref=f15e49]
+        - columnheader "Status" [ref=f15e50]
+        - columnheader "Fecha" [ref=f15e51]
+        - columnheader [ref=f15e52]
+    - rowgroup [ref=f15e53]:
+      - row [ref=f15e54]:
+        - cell "AUTO-TEST" [ref=f15e55]
+        - cell "Prueba persistencia" [ref=f15e56]
+        - cell "Issue creado desde la UI" [ref=f15e57]
+        - cell [ref=f15e58]
+        - cell "Media" [ref=f15e60]
+        - cell "Alta" [ref=f15e61]
+        - cell "Open" [ref=f15e62]
+        - cell "29/7/2026" [ref=f15e64]
+        - cell [ref=f15e65]:
+          - generic [ref=f15e66]:
+            - button "Editar" [ref=f15e67] [cursor=pointer]
+            - button "Agregar comentario al issue AUTO-TEST" [ref=f15e68] [cursor=pointer]
+      - row [ref=f15e72]:
+        - cell "GH-PAGES-TEST" [ref=f15e73]
+        - cell "Prueba GitHub Pages" [ref=f15e74]
+        - cell "Creado desde la versión estática" [ref=f15e75]
+        - cell [ref=f15e76]
+        - cell "Media" [ref=f15e78]
+        - cell "Alta" [ref=f15e79]
+        - cell "Open" [ref=f15e80]
+        - cell "29/7/2026" [ref=f15e82]
+        - cell [ref=f15e83]:
+          - generic [ref=f15e84]:
+            - button "Editar" [ref=f15e85] [cursor=pointer]
+            - button "Agregar comentario al issue GH-PAGES-TEST" [ref=f15e86] [cursor=pointer]
+  - generic [ref=f15e90]: Datos visibles para cualquier persona con este enlace · Actualización en tiempo real

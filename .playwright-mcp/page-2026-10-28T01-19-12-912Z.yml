@@ -1,0 +1,63 @@
+- generic [ref=f1e2]:
+  - generic [ref=f1e3]:
+    - generic [ref=f1e4]:
+      - generic [ref=f1e5]: Panamericana · Módulo Activos Fijos
+      - heading "Bitácora de Issues / QA" [level=1] [ref=f1e6]
+      - generic [ref=f1e7]: "Última actualización: 27/10/2026, 8:19:12 p. m."
+    - generic [ref=f1e8]:
+      - button "Módulos" [ref=f1e9] [cursor=pointer]
+      - button "+ Registrar issue" [ref=f1e10] [cursor=pointer]
+  - generic [ref=f1e11]:
+    - generic [ref=f1e12]:
+      - generic [ref=f1e13]: "1"
+      - generic [ref=f1e14]: Open
+    - generic [ref=f1e15]:
+      - generic [ref=f1e16]: "0"
+      - generic [ref=f1e17]: Blocked
+    - generic [ref=f1e18]:
+      - generic [ref=f1e19]: "0"
+      - generic [ref=f1e20]: Ready for Retest
+    - generic [ref=f1e21]:
+      - generic [ref=f1e22]: "0"
+      - generic [ref=f1e23]: In Progress
+    - generic [ref=f1e24]:
+      - generic [ref=f1e25]: "0"
+      - generic [ref=f1e26]: Closed
+    - generic [ref=f1e27]:
+      - generic [ref=f1e28]: "0"
+      - generic [ref=f1e29]: Re-Open
+    - generic [ref=f1e30]:
+      - generic [ref=f1e31]: "1"
+      - generic [ref=f1e32]: Total
+  - generic [ref=f1e33]:
+    - generic [ref=f1e34]:
+      - button "Tabla" [ref=f1e35] [cursor=pointer]
+      - button "Kanban" [ref=f1e36] [cursor=pointer]
+    - textbox "Buscar por código del caso, título del hallazgo u observación..." [ref=f1e37]
+  - table [ref=f1e40]:
+    - rowgroup [ref=f1e41]:
+      - row [ref=f1e42]:
+        - columnheader "Código del caso" [ref=f1e43]
+        - columnheader "Título del hallazgo" [ref=f1e44]
+        - columnheader "Descripción del hallazgo" [ref=f1e45]
+        - columnheader "Evidencia" [ref=f1e46]
+        - columnheader "Severity" [ref=f1e47]
+        - columnheader "Priority" [ref=f1e48]
+        - columnheader "Status" [ref=f1e49]
+        - columnheader "Fecha" [ref=f1e50]
+        - columnheader [ref=f1e51]
+    - rowgroup [ref=f1e52]:
+      - row [ref=f1e53]:
+        - cell "KANBAN-VALIDATION" [ref=f1e54]
+        - cell "Prueba temporal de arrastre" [ref=f1e55]
+        - cell "Validar persistencia" [ref=f1e56]
+        - cell [ref=f1e57]
+        - cell "Medium" [ref=f1e59]
+        - cell [ref=f1e60]
+        - cell "Open" [ref=f1e61]
+        - cell [ref=f1e63]
+        - cell [ref=f1e64]:
+          - generic [ref=f1e65]:
+            - button "Editar" [ref=f1e66] [cursor=pointer]
+            - button "Agregar comentario al issue KANBAN-VALIDATION" [ref=f1e67] [cursor=pointer]
+  - generic [ref=f1e71]: Datos visibles para cualquier persona con este enlace · Actualización en tiempo real
