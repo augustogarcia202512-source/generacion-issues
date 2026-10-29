@@ -292,6 +292,11 @@ tr:hover td{ background: rgba(232,163,61,0.04); }
   position:absolute; top:6px; right:6px; background: rgba(6,12,18,0.85); color:var(--text);
   border:1px solid var(--line); border-radius:2px; font-size:11px; padding:3px 8px; cursor:pointer;
 }
+.document-upload-zone{ display:block; }
+.document-preview{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:8px; padding:10px 12px; border:1px solid var(--line); border-radius:3px; color:var(--text-dim); font-size:12px; }
+.document-preview button,.document-download{ background:none; border:1px solid var(--line); color:var(--text-dim); padding:6px 9px; border-radius:3px; cursor:pointer; font-size:11px; }
+.document-preview button:hover,.document-download:hover{ border-color:var(--amber); color:var(--amber); }
+.document-download{ display:block; margin-top:5px; max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .thumb-stack{ display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
 .thumb-stack .thumb{ width:34px; height:34px; object-fit:cover; border-radius:2px; border:1px solid var(--line); cursor:pointer; display:block; }
 .thumb-stack .thumb.is-large{ width:72px; height:72px; }
@@ -398,6 +403,15 @@ tr:hover td{ background: rgba(232,163,61,0.04); }
           <div class="capture-status" id="captureStatus">Máx. 5 imágenes · PNG/JPG · o pega una captura con Ctrl+V</div>
         </div>
         <div id="uploadPreviewWrap"></div>
+      </div>
+      <div class="field">
+        <label for="f_wordDocument">Documento Word</label>
+        <label class="upload-zone document-upload-zone">
+          Adjuntar documento Word
+          <input type="file" id="f_wordDocument" accept=".doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
+        </label>
+        <div class="capture-status" id="documentStatus">Máx. 3 MB · .doc o .docx · un documento por issue</div>
+        <div id="documentPreviewWrap"></div>
       </div>
       <div class="field-row">
         <div class="field">
@@ -537,15 +551,20 @@ const STATUS_LABEL = {Open:'Open',Blocked:'Blocked',ReadyRetest:'Ready for Retes
 let issues = [];
 let modules = [];
 let imagesCache = {}; // id -> array of dataURLs, loaded from separate storage keys
+let documentsCache = {}; // id -> Word document data
 let editingId = null;
 let currentView = 'table';
 let filterModule = '';
 let filterStatus = '';
 let ageLimitDays = 7;
 let pendingImages = [];
+let pendingDocument = null;
+let documentRemoved = false;
 let pendingNovedades = [];
 let quickCommentIssueId = null;
 const MAX_IMAGES_PER_ISSUE = 5;
+const MAX_WORD_DOCUMENT_BYTES = 3 * 1024 * 1024;
+const WORD_DOCUMENT_EXTENSIONS = new Set(['doc', 'docx']);
 
 const storageApi = (function(){
   const fallbackStorage = window.localStorage;
@@ -582,7 +601,10 @@ const storageApi = (function(){
     async set(key, value){
       try{
         await apiRequest('POST', key, value);
-        if(fallbackStorage) fallbackStorage.setItem(key, value);
+        if(fallbackStorage){
+          try{ fallbackStorage.setItem(key, value); }
+          catch(error){ console.warn('El almacenamiento local no pudo sincronizar el dato:', error); }
+        }
         return true;
       }catch(error){
         try{ fallbackStorage.setItem(key, value); return true; }
@@ -616,6 +638,17 @@ async function loadIssueImages(issue){
     imagesCache[id] = legacyRes && legacyRes.value ? [legacyRes.value] : [];
   }catch(e){
     imagesCache[id] = [];
+  }
+}
+
+async function loadIssueDocument(issue){
+  const id = issue && issue.id;
+  if(!id) return;
+  try{
+    const result = await storageApi.get('issue-document:' + id);
+    documentsCache[id] = result && result.value ? JSON.parse(result.value) : null;
+  }catch(error){
+    documentsCache[id] = null;
   }
 }
 
@@ -723,7 +756,7 @@ async function loadIssues(){
     issues = res && res.value ? JSON.parse(res.value) : [];
   }catch(e){ issues = []; }
 
-  await Promise.all(issues.map(issue => loadIssueImages(issue)));
+  await Promise.all(issues.flatMap(issue => [loadIssueImages(issue), loadIssueDocument(issue)]));
 
   render();
   document.getElementById('lastUpdate').textContent = 'Última actualización: ' + new Date().toLocaleString('es-CO');
@@ -742,6 +775,7 @@ function exportApplicationBackup(){
     modules: modules.map(module => ({...module})),
     issues: issues.map(issue => ({...issue})),
     images: Object.fromEntries(issues.map(issue => [issue.id, (imagesCache[issue.id] || []).slice()] )),
+    documents: Object.fromEntries(issues.filter(issue => documentsCache[issue.id]).map(issue => [issue.id, documentsCache[issue.id]])),
     settings: { ageLimitDays }
   };
   const blob = new Blob([JSON.stringify(backup, null, 2)], {type:'application/json;charset=utf-8'});
@@ -768,6 +802,9 @@ function validateApplicationBackup(backup){
   if(!backup.images || typeof backup.images !== 'object' || Array.isArray(backup.images)){
     throw new Error('El respaldo no contiene las evidencias en un formato válido.');
   }
+  if(backup.documents !== undefined && (!backup.documents || typeof backup.documents !== 'object' || Array.isArray(backup.documents))){
+    throw new Error('Los documentos adjuntos del respaldo no tienen un formato válido.');
+  }
   const modulesValid = backup.modules.every(module =>
     module && typeof module.name === 'string' && module.name.trim() && typeof module.prefix === 'string' && module.prefix.trim()
   );
@@ -776,6 +813,20 @@ function validateApplicationBackup(backup){
   const ids = backup.issues.map(issue => issue.id).filter(Boolean);
   if(ids.length !== backup.issues.length || new Set(ids).size !== ids.length){
     throw new Error('Hay issues sin identificar o con identificadores repetidos.');
+  }
+  for(const [id, file] of Object.entries(backup.documents || {})){
+    const extension = file && typeof file.name === 'string' ? file.name.split('.').pop().toLowerCase() : '';
+    const mimeType = extension === 'docx'
+      ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      : 'application/msword';
+    if(!ids.includes(id) || !WORD_DOCUMENT_EXTENSIONS.has(extension) ||
+       typeof file.dataUrl !== 'string' || !file.dataUrl.startsWith(`data:${mimeType};base64,`) ||
+       !/^data:application\/[^;,]+;base64,[A-Za-z0-9+/]+=*$/.test(file.dataUrl)){
+      throw new Error('Hay un documento Word inválido en el respaldo.');
+    }
+    const encoded = file.dataUrl.slice(file.dataUrl.indexOf(',') + 1);
+    const decodedSize = Math.floor(encoded.length * 3 / 4) - (encoded.endsWith('==') ? 2 : encoded.endsWith('=') ? 1 : 0);
+    if(decodedSize > MAX_WORD_DOCUMENT_BYTES) throw new Error('Un documento del respaldo supera el límite de 3 MB.');
   }
 }
 
@@ -787,17 +838,20 @@ async function importApplicationBackup(file){
     validateApplicationBackup(backup);
     const issueCount = backup.issues.length;
     const evidenceCount = backup.issues.reduce((sum, issue) => sum + (Array.isArray(backup.images[issue.id]) ? backup.images[issue.id].length : 0), 0);
-    if(!confirm(`Se reemplazarán los datos actuales por ${issueCount} issues y ${evidenceCount} evidencias. ¿Deseas continuar?`)) return;
+    const documentCount = Object.keys(backup.documents || {}).length;
+    if(!confirm(`Se reemplazarán los datos actuales por ${issueCount} issues, ${evidenceCount} evidencias y ${documentCount} documentos Word. ¿Deseas continuar?`)) return;
 
     const previousIssueIds = issues.map(issue => issue.id).filter(Boolean);
     for(const id of previousIssueIds){
       await storageApi.delete(`issue-images:${id}`);
       await storageApi.delete(`issue-image:${id}`);
+      await storageApi.delete(`issue-document:${id}`);
     }
     await storageApi.set('modules-list', JSON.stringify(backup.modules));
     await storageApi.set('issues-list', JSON.stringify(backup.issues));
 
     const restoredImages = {};
+    const restoredDocuments = {};
     for(const issue of backup.issues){
       const evidence = Array.isArray(backup.images[issue.id])
         ? backup.images[issue.id].filter(value => typeof value === 'string' && value.startsWith('data:image/')).slice(0, MAX_IMAGES_PER_ISSUE)
@@ -809,11 +863,20 @@ async function importApplicationBackup(file){
         await storageApi.delete(`issue-images:${issue.id}`);
         await storageApi.delete(`issue-image:${issue.id}`);
       }
+      const file = (backup.documents || {})[issue.id] || null;
+      restoredDocuments[issue.id] = file;
+      if(file){
+        const saved = await storageApi.set(`issue-document:${issue.id}`, JSON.stringify(file));
+        if(!saved) throw new Error(`No se pudo restaurar el documento Word del issue ${issue.testid || issue.id}.`);
+      }else{
+        await storageApi.delete(`issue-document:${issue.id}`);
+      }
     }
 
     modules = backup.modules.map(module => ({...module}));
     issues = backup.issues.map(issue => ({...issue}));
     imagesCache = restoredImages;
+    documentsCache = restoredDocuments;
     ageLimitDays = normalizeAgeLimit(backup.settings && backup.settings.ageLimitDays);
     document.getElementById('ageLimitDays').value = ageLimitDays;
     await storageApi.set('issue-age-limit-days', String(ageLimitDays));
@@ -823,7 +886,7 @@ async function importApplicationBackup(file){
     renderModules();
     render();
     document.getElementById('lastUpdate').textContent = 'Última actualización: ' + new Date().toLocaleString('es-CO');
-    alert(`Importación completada: ${issueCount} issues y ${evidenceCount} evidencias restauradas.`);
+    alert(`Importación completada: ${issueCount} issues, ${evidenceCount} evidencias y ${documentCount} documentos Word restaurados.`);
   }catch(error){
     console.error('Error importando respaldo:', error);
     alert(error.message || 'No se pudo importar el archivo de respaldo.');
@@ -859,6 +922,15 @@ function excelDataUrlBytes(dataUrl){
   const bytes = new Uint8Array(binary.length);
   for(let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
   return {bytes, extension: match[1].toLowerCase().replace('jpeg', 'jpg')};
+}
+
+function excelImageDimensions(dataUrl){
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve({width:image.naturalWidth, height:image.naturalHeight});
+    image.onerror = () => reject(new Error('No se pudo leer el tamaño de una evidencia para Excel.'));
+    image.src = dataUrl;
+  });
 }
 
 function excelCreateZip(entries){
@@ -976,7 +1048,8 @@ async function downloadExcelWorkbookClient(exportIssues = filtered(), scope = ''
     const sheetRows = [];
     sheetRows.push(`<row r="1" ht="26" customHeight="1">${headers.map((header, column) => excelReportXmlCell(`${excelReportColumn(column + 1)}1`, header, 1)).join('')}</row>`);
 
-    exportIssues.forEach((issue, issueIndex) => {
+    for(let issueIndex = 0; issueIndex < exportIssues.length; issueIndex++){
+      const issue = exportIssues[issueIndex];
       const created = excelReportDate(issue.fecha || issue.createdAt);
       const solutionDate = excelReportSolutionDate(issue);
       const latestUpdate = (issue.novedades || [])
@@ -1001,11 +1074,16 @@ async function downloadExcelWorkbookClient(exportIssues = filtered(), scope = ''
       const cells = values.map((value, column) => excelReportXmlCell(
         `${excelReportColumn(column + 1)}${rowNumber}`, value, column === 9 ? ageStyle : 2
       )).join('');
-      sheetRows.push(`<row r="${rowNumber}" ht="98" customHeight="1">${cells}</row>`);
+      sheetRows.push(`<row r="${rowNumber}" ht="110" customHeight="1">${cells}</row>`);
 
+      const imageDimensions = await Promise.all(issueImages.map(excelImageDimensions));
       issueImages.forEach((dataUrl, imageIndex) => {
         const image = excelDataUrlBytes(dataUrl);
         if(!image) return;
+        const dimensions = imageDimensions[imageIndex];
+        const scale = Math.min(190 / dimensions.width, 125 / dimensions.height);
+        const width = Math.max(1, Math.round(dimensions.width * scale));
+        const height = Math.max(1, Math.round(dimensions.height * scale));
         const extension = ['png','jpg','jpeg','gif','bmp'].includes(image.extension) ? image.extension : 'png';
         const mediaName = `image${media.length + 1}.${extension}`;
         const relationshipId = `rId${media.length + 1}`;
@@ -1013,20 +1091,20 @@ async function downloadExcelWorkbookClient(exportIssues = filtered(), scope = ''
         const col = 14 + imageIndex;
         const shapeId = media.length + 1;
         drawingParts.push(`
-          <xdr:twoCellAnchor editAs="oneCell">
+          <xdr:oneCellAnchor>
             <xdr:from><xdr:col>${col}</xdr:col><xdr:colOff>7000</xdr:colOff><xdr:row>${issueIndex + 1}</xdr:row><xdr:rowOff>7000</xdr:rowOff></xdr:from>
-            <xdr:to><xdr:col>${col + 1}</xdr:col><xdr:colOff>7000</xdr:colOff><xdr:row>${issueIndex + 2}</xdr:row><xdr:rowOff>7000</xdr:rowOff></xdr:to>
+            <xdr:ext cx="${width * 9525}" cy="${height * 9525}"/>
             <xdr:pic>
               <xdr:nvPicPr><xdr:cNvPr id="${shapeId}" name="Evidencia ${imageIndex + 1} - ${excelXmlText(issue.testid || issue.id)}"/><xdr:cNvPicPr><a:picLocks noChangeAspect="1"/></xdr:cNvPicPr></xdr:nvPicPr>
               <xdr:blipFill><a:blip r:embed="${relationshipId}"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill>
-              <xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="914400" cy="914400"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr>
+              <xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${width * 9525}" cy="${height * 9525}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr>
             </xdr:pic>
             <xdr:clientData/>
-          </xdr:twoCellAnchor>`);
+          </xdr:oneCellAnchor>`);
       });
-    });
+    }
 
-    const widthMap = [14,30,22,44,18,14,14,22,16,16,16,18,46,12,24,24,24,24,24];
+    const widthMap = [14,30,22,44,18,14,14,22,16,16,16,18,46,12,30,30,30,30,30];
     const colsXml = widthMap.map((width, index) => `<col min="${index + 1}" max="${index + 1}" width="${width}" customWidth="1"/>`).join('');
     const sheetXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheetViews><sheetView showGridLines="0" workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols>${colsXml}</cols><sheetData>${sheetRows.join('')}</sheetData><autoFilter ref="A1:S${exportIssues.length + 1}"/><drawing r:id="rId1"/></worksheet>`;
 
@@ -1304,6 +1382,48 @@ function renderUploadPreview(){
   }
 }
 
+function renderDocumentPreview(){
+  const wrap = document.getElementById('documentPreviewWrap');
+  const file = pendingDocument || (!documentRemoved && editingId ? documentsCache[editingId] : null);
+  if(!file){
+    wrap.innerHTML = '';
+    return;
+  }
+  wrap.innerHTML = `<div class="document-preview"><span>Documento Word: ${escapeHtml(file.name)}</span><button type="button" id="btnRemoveWordDocument">Quitar</button></div>`;
+  document.getElementById('btnRemoveWordDocument').addEventListener('click', () => {
+    pendingDocument = null;
+    documentRemoved = true;
+    document.getElementById('f_wordDocument').value = '';
+    renderDocumentPreview();
+  });
+}
+
+function readWordDocument(file){
+  return new Promise((resolve, reject) => {
+    const extension = file.name.split('.').pop().toLowerCase();
+    if(!WORD_DOCUMENT_EXTENSIONS.has(extension)){
+      reject(new Error('Solo se permiten documentos Word .doc o .docx.'));
+      return;
+    }
+    if(file.size > MAX_WORD_DOCUMENT_BYTES){
+      reject(new Error('El documento Word supera el límite de 3 MB.'));
+      return;
+    }
+    const mimeType = extension === 'docx'
+      ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      : 'application/msword';
+    const reader = new FileReader();
+    reader.onload = () => resolve({
+      name:file.name,
+      type:mimeType,
+      dataUrl:reader.result,
+      size:file.size
+    });
+    reader.onerror = () => reject(new Error('No se pudo leer el documento Word.'));
+    reader.readAsDataURL(file);
+  });
+}
+
 function processImageFile(file){
   return new Promise((resolve, reject) => {
     if(file.size > 8 * 1024 * 1024){
@@ -1314,7 +1434,7 @@ function processImageFile(file){
     reader.onload = () => {
       const img = new Image();
       img.onload = () => {
-        const MAX_DIM = 1100;
+        const MAX_DIM = 2200;
         let w = img.width, h = img.height;
         if(w > MAX_DIM || h > MAX_DIM){
           const scale = MAX_DIM / Math.max(w, h);
@@ -1324,7 +1444,7 @@ function processImageFile(file){
         canvas.width = w; canvas.height = h;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, w, h);
-        resolve(canvas.toDataURL('image/jpeg', 0.72));
+        resolve(canvas.toDataURL('image/jpeg', 0.92));
       };
       img.onerror = () => reject(new Error('No se pudo procesar la imagen. Intenta con otro archivo.'));
       img.src = reader.result;
@@ -1350,6 +1470,21 @@ document.getElementById('f_image').addEventListener('change', async (e) => {
     alert(err.message || 'No se pudo procesar una o más imágenes.');
   } finally {
     e.target.value = '';
+  }
+});
+
+document.getElementById('f_wordDocument').addEventListener('change', async event => {
+  const file = event.target.files && event.target.files[0];
+  if(!file) return;
+  try{
+    pendingDocument = await readWordDocument(file);
+    documentRemoved = false;
+    renderDocumentPreview();
+    document.getElementById('documentStatus').textContent = 'Documento listo · se guardará al guardar el issue';
+  }catch(error){
+    alert(error.message || 'No se pudo procesar el documento Word.');
+  }finally{
+    event.target.value = '';
   }
 });
 
@@ -1501,11 +1636,12 @@ function cropCapturedImage(sourceDataUrl){
     accept.onclick = () => {
       if(!selection) return;
       const {x, y, width, height} = selection;
+      const scale = Math.min(1, 2200 / Math.max(width, height));
       const cropped = document.createElement('canvas');
-      cropped.width = Math.round(width);
-      cropped.height = Math.round(height);
+      cropped.width = Math.max(1, Math.round(width * scale));
+      cropped.height = Math.max(1, Math.round(height * scale));
       cropped.getContext('2d').drawImage(canvas, x, y, width, height, 0, 0, cropped.width, cropped.height);
-      const dataUrl = cropped.toDataURL('image/jpeg', 0.72);
+      const dataUrl = cropped.toDataURL('image/jpeg', 0.92);
       cleanup();
       resolve(dataUrl);
     };
@@ -1583,7 +1719,7 @@ async function captureScreen(){
     context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
     returnCaptureFocus();
-    const selectedDataUrl = await cropCapturedImage(canvas.toDataURL('image/jpeg', 0.72));
+    const selectedDataUrl = await cropCapturedImage(canvas.toDataURL('image/jpeg', 0.92));
     if(selectedDataUrl){
       pendingImages.push(selectedDataUrl);
       renderUploadPreview();
@@ -1687,6 +1823,7 @@ function renderTable(){
       <tbody>
         ${list.map(i => {
           const imgs = imagesCache[i.id] || [];
+          const wordDocument = documentsCache[i.id];
           const age = issueAgeDays(i);
           const overdue = i.status !== 'Closed' && age !== null && age > ageLimitDays;
           return `
@@ -1695,7 +1832,7 @@ function renderTable(){
             <td>${escapeHtml(i.modulo)}</td>
             <td>${escapeHtml(i.formulario)}</td>
             <td class="obs">${escapeHtml(i.obs)}</td>
-            <td class="thumb-cell">${imgs.length ? `<div class="thumb-stack">${imgs.slice(0, 3).map((src, idx) => `<img class="thumb" src="${src}" onclick="openImage('${i.id}', ${idx})">`).join('')}</div>` : `<div class="no-thumb"></div>`}</td>
+            <td class="thumb-cell">${imgs.length ? `<div class="thumb-stack">${imgs.slice(0, 3).map((src, idx) => `<img class="thumb" src="${src}" onclick="openImage('${i.id}', ${idx})">`).join('')}</div>` : `<div class="no-thumb"></div>`}${wordDocument ? `<button type="button" class="document-download" title="Descargar documento Word" onclick="downloadIssueDocument('${escapeHtml(i.id)}')">Word: ${escapeHtml(wordDocument.name)}</button>` : ''}</td>
             <td>${escapeHtml(i.severity)}</td>
             <td>${escapeHtml(i.priority)}</td>
             <td><span class="badge ${i.status}">${STATUS_LABEL[i.status]}</span></td>
@@ -1731,12 +1868,14 @@ function renderKanban(){
         <div class="kcards" data-status="${s}">
           ${items.map(i => {
             const imgs = imagesCache[i.id] || [];
+            const wordDocument = documentsCache[i.id];
             return `
             <div class="kcard" draggable="true" data-issue-id="${i.id}" ondragstart="kanbanDragStart(event)" ondragend="kanbanDragEnd(event)" onclick="if(!suppressKanbanClick) openEdit('${i.id}')">
               ${imgs.length ? `<div class="thumb-stack">${imgs.slice(0, 2).map((src, idx) => `<img class="kcard-img" src="${src}" onclick="event.stopPropagation(); openImage('${i.id}', ${idx})">`).join('')}</div>` : ''}
               <span class="testid">${escapeHtml(i.testid)}</span>
               <div class="kform">${escapeHtml(i.formulario)}</div>
               <div class="kobs">${escapeHtml(i.obs)}</div>
+              ${wordDocument ? `<small>Documento Word adjunto</small>` : ''}
             </div>`;
           }).join('') || '<div style="color:var(--text-dim); font-size:12px; padding:8px 4px;">—</div>'}
         </div>
@@ -1748,6 +1887,30 @@ function renderKanban(){
 function escapeHtml(s){
   return (s||'').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 }
+
+window.downloadIssueDocument = function(issueId){
+  const file = documentsCache[issueId];
+  if(!file || typeof file.dataUrl !== 'string'){
+    alert('No se encontró el documento Word adjunto.');
+    return;
+  }
+  const match = /^data:(application\/(?:msword|vnd\.openxmlformats-officedocument\.wordprocessingml\.document));base64,([A-Za-z0-9+/]+=*)$/.exec(file.dataUrl);
+  if(!match){
+    alert('El documento Word adjunto no tiene un formato válido.');
+    return;
+  }
+  const binary = atob(match[2]);
+  const bytes = new Uint8Array(binary.length);
+  for(let index = 0; index < binary.length; index++) bytes[index] = binary.charCodeAt(index);
+  const url = URL.createObjectURL(new Blob([bytes], {type:match[1]}));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = file.name;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+};
 
 function formatTrackingDate(value){
   const date = value ? new Date(value) : new Date();
@@ -1788,9 +1951,12 @@ function addNovedad(){
 function openNew(){
   editingId = null;
   pendingImages = [];
+  pendingDocument = null;
+  documentRemoved = false;
   pendingNovedades = [];
   document.getElementById('modalTitle').textContent = 'Registrar issue';
   document.getElementById('issueForm').reset();
+  document.getElementById('f_wordDocument').value = '';
   renderModuleOptions(modules[0] && modules[0].name);
   document.getElementById('f_testid').value = nextTestId(document.getElementById('f_modulo').value);
   document.getElementById('btnDelete').style.display = 'none';
@@ -1799,7 +1965,9 @@ function openNew(){
   document.getElementById('f_novedad_tipo').value = 'Novedad';
   renderTracking();
   renderUploadPreview();
+  renderDocumentPreview();
   document.getElementById('captureStatus').textContent = 'Máx. 5 imágenes · PNG/JPG · o pega una captura con Ctrl+V';
+  document.getElementById('documentStatus').textContent = 'Máx. 3 MB · .doc o .docx · un documento por issue';
   document.getElementById('overlay').classList.add('show');
 }
 
@@ -1808,6 +1976,9 @@ window.openEdit = function(id, focusTracking=false){
   if(!i) return;
   editingId = id;
   pendingImages = [...(imagesCache[id] || [])];
+  pendingDocument = null;
+  documentRemoved = false;
+  document.getElementById('f_wordDocument').value = '';
   pendingNovedades = Array.isArray(i.novedades) ? i.novedades.map(entry => ({...entry})) : [];
   document.getElementById('modalTitle').textContent = 'Editar issue';
   renderModuleOptions(i.modulo);
@@ -1825,7 +1996,9 @@ window.openEdit = function(id, focusTracking=false){
   document.getElementById('btnDelete').style.display = 'inline-block';
   document.getElementById('btnSave').textContent = 'Guardar cambios';
   renderUploadPreview();
+  renderDocumentPreview();
   document.getElementById('captureStatus').textContent = 'Máx. 5 imágenes · PNG/JPG · o pega una captura con Ctrl+V';
+  document.getElementById('documentStatus').textContent = 'Máx. 3 MB · .doc o .docx · un documento por issue';
   document.getElementById('overlay').classList.add('show');
   if(focusTracking){
     requestAnimationFrame(() => {
@@ -2027,6 +2200,16 @@ document.getElementById('issueForm').addEventListener('submit', async (e) => {
       }
     }
 
+    if(pendingDocument){
+      const saved = await storageApi.set(`issue-document:${id}`, JSON.stringify(pendingDocument));
+      if(!saved) throw new Error('No se pudo guardar el documento Word. Revisa el espacio disponible e intenta de nuevo.');
+      documentsCache[id] = pendingDocument;
+    }else if(documentRemoved){
+      const deleted = await storageApi.delete(`issue-document:${id}`);
+      if(!deleted) throw new Error('No se pudo quitar el documento Word del issue.');
+      delete documentsCache[id];
+    }
+
     await saveIssues();
     closeModal();
     render();
@@ -2045,7 +2228,9 @@ document.getElementById('btnDelete').addEventListener('click', async () => {
   issues = issues.filter(x => x.id !== editingId);
   try{ await storageApi.delete('issue-images:' + editingId); }catch(e){}
   try{ await storageApi.delete('issue-image:' + editingId); }catch(e){}
+  try{ await storageApi.delete('issue-document:' + editingId); }catch(e){}
   delete imagesCache[editingId];
+  delete documentsCache[editingId];
   await saveIssues();
   closeModal();
   render();

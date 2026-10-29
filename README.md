@@ -10,6 +10,8 @@
 
 Pillow permite insertar las evidencias como imágenes en el archivo Excel generado por el servidor local.
 En GitHub Pages, el Excel se genera directamente en el navegador; ambos modos respetan los filtros activos y crean las hojas `Bitácora` y `Resumen`.
+Las imágenes nuevas se guardan con un máximo de 2200 píxeles por lado y calidad JPEG del 92 %, y se insertan en Excel con su proporción original. Las evidencias ya guardadas no recuperan los detalles perdidos antes de este cambio.
+Cada issue puede tener un documento Word `.doc` o `.docx` de hasta 3 MB. El archivo queda disponible para descarga desde la tabla, se puede reemplazar o quitar al editar el issue y se incluye en los respaldos JSON; el Excel conserva sus columnas y evidencias visuales actuales.
 La tabla muestra la antigüedad de cada issue abierto y alerta cuando supera el límite configurable (7 días de forma predeterminada).
 
 ## Publicar en GitHub Pages

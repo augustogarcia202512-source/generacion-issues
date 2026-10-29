@@ -137,7 +137,7 @@ class Handler(SimpleHTTPRequestHandler):
             cell.border = thin_border
         sheet.row_dimensions[1].height = 26
 
-        width_map = [14, 30, 22, 44, 18, 14, 14, 22, 16, 16, 16, 18, 46, 12, 24, 24, 24, 24, 24]
+        width_map = [14, 30, 22, 44, 18, 14, 14, 22, 16, 16, 16, 18, 46, 12, 30, 30, 30, 30, 30]
         for index, width in enumerate(width_map, 1):
             sheet.column_dimensions[get_column_letter(index)].width = width
 
@@ -167,7 +167,7 @@ class Handler(SimpleHTTPRequestHandler):
                       created or '', age if age is not None else '', solution_date or '',
                       last_update or '', trace, len(issue_images), '', '', '', '', '']
             sheet.append(values)
-            sheet.row_dimensions[issue_index].height = 98
+            sheet.row_dimensions[issue_index].height = 110
             for cell in sheet[issue_index]:
                 cell.font = body_font
                 cell.alignment = Alignment(vertical='top', wrap_text=True)
@@ -181,7 +181,7 @@ class Handler(SimpleHTTPRequestHandler):
             for image_index, data_url in enumerate(issue_images):
                 image = self.decode_excel_image(data_url)
                 if image:
-                    scale = min(110 / image.width, 82 / image.height)
+                    scale = min(190 / image.width, 125 / image.height, 1)
                     image.width = int(image.width * scale)
                     image.height = int(image.height * scale)
                     sheet.add_image(image, f'{get_column_letter(15 + image_index)}{issue_index}')
@@ -236,10 +236,7 @@ class Handler(SimpleHTTPRequestHandler):
         if not separator or not prefix.startswith('data:image/'):
             return None
         raw = base64.b64decode(payload)
-        image = Image(io.BytesIO(raw))
-        image.width = 110
-        image.height = 82
-        return image
+        return Image(io.BytesIO(raw))
 
     def populate_metrics(self, metrics, issues, images, scope, status_labels, age_limit_days):
         total = len(issues)
