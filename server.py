@@ -21,6 +21,7 @@ ROOT = Path(__file__).resolve().parent
 DATA_DIR = ROOT / 'data'
 DATA_DIR.mkdir(exist_ok=True)
 STORAGE_FILE = DATA_DIR / 'storage.json'
+MAX_IMAGES_PER_ISSUE = 10
 
 if not STORAGE_FILE.exists():
     STORAGE_FILE.write_text('{}', encoding='utf-8')
@@ -125,8 +126,8 @@ class Handler(SimpleHTTPRequestHandler):
         headers = ['Test ID', 'Título del hallazgo', 'Módulo', 'Descripción del hallazgo',
                    'Estado', 'Severidad', 'Prioridad', 'Asignado a', 'Fecha registro',
                    'Antigüedad (días)', 'Fecha cierre', 'Última actualización',
-                   'Comentarios / trazabilidad', 'Imágenes', 'Evidencia 1',
-                   'Evidencia 2', 'Evidencia 3', 'Evidencia 4', 'Evidencia 5']
+                   'Comentarios / trazabilidad', 'Imágenes',
+                   *[f'Evidencia {index}' for index in range(1, MAX_IMAGES_PER_ISSUE + 1)]]
         sheet.append(headers)
 
         header_fill = PatternFill('solid', fgColor='FF1F3A5F')
@@ -139,7 +140,8 @@ class Handler(SimpleHTTPRequestHandler):
             cell.border = thin_border
         sheet.row_dimensions[1].height = 26
 
-        width_map = [14, 30, 22, 44, 18, 14, 14, 22, 16, 16, 16, 18, 46, 12, 30, 30, 30, 30, 30]
+        width_map = [14, 30, 22, 44, 18, 14, 14, 22, 16, 16, 16, 18, 46, 12,
+                     *([30] * MAX_IMAGES_PER_ISSUE)]
         for index, width in enumerate(width_map, 1):
             sheet.column_dimensions[get_column_letter(index)].width = width
 
@@ -162,13 +164,13 @@ class Handler(SimpleHTTPRequestHandler):
                 f"{item.get('type', 'Novedad')}: {item.get('text', '')}"
                 for item in issue.get('novedades', []) if isinstance(item, (str, dict))
             )
-            issue_images = images.get(str(issue.get('id')), [])[:5]
+            issue_images = images.get(str(issue.get('id')), [])[:MAX_IMAGES_PER_ISSUE]
             values = [issue.get('testid', ''), issue.get('formulario', ''), issue.get('modulo', ''),
                       issue.get('obs', ''), status_labels.get(status, status), issue.get('severity', ''),
                       issue.get('priority') or issue.get('Priority') or issue.get('prioridad') or 'Sin definir',
                       issue.get('assigned', ''),
                       created or '', age if age is not None else '', solution_date or '',
-                      last_update or '', trace, len(issue_images), '', '', '', '', '']
+                      last_update or '', trace, len(issue_images), *([''] * MAX_IMAGES_PER_ISSUE)]
             sheet.append(values)
             sheet.row_dimensions[issue_index].height = 110
             for cell in sheet[issue_index]:
@@ -189,7 +191,7 @@ class Handler(SimpleHTTPRequestHandler):
                     image.height = int(image.height * scale)
                     sheet.add_image(image, f'{get_column_letter(15 + image_index)}{issue_index}')
 
-        sheet.auto_filter.ref = f'A1:S{len(issues) + 1}'
+        sheet.auto_filter.ref = f'A1:{get_column_letter(14 + MAX_IMAGES_PER_ISSUE)}{len(issues) + 1}'
 
         metrics = workbook.create_sheet('Resumen')
         metrics.sheet_view.showGridLines = False

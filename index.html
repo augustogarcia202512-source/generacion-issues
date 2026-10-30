@@ -423,7 +423,7 @@ tr:hover .actions-cell{ background:#171d25; }
               <input type="file" id="f_image" accept="image/*" multiple>
             </label>
           </div>
-          <div class="capture-status" id="captureStatus">Máx. 5 imágenes · PNG/JPG · o pega una captura con Ctrl+V</div>
+          <div class="capture-status" id="captureStatus">Máx. 10 imágenes · PNG/JPG · o pega una captura con Ctrl+V</div>
         </div>
         <div id="uploadPreviewWrap"></div>
       </div>
@@ -619,7 +619,7 @@ let pendingDocument = null;
 let documentRemoved = false;
 let pendingNovedades = [];
 let quickCommentIssueId = null;
-const MAX_IMAGES_PER_ISSUE = 5;
+const MAX_IMAGES_PER_ISSUE = 10;
 const MAX_WORD_DOCUMENT_BYTES = 3 * 1024 * 1024;
 const WORD_DOCUMENT_EXTENSIONS = new Set(['doc', 'docx']);
 
@@ -1180,7 +1180,8 @@ async function downloadExcelWorkbookClient(exportIssues = filtered(), scope = ''
   button.disabled = true;
   button.textContent = 'Preparando Excel...';
   try{
-    const headers = ['Test ID','Título del hallazgo','Módulo','Descripción del hallazgo','Estado','Severidad','Prioridad','Asignado a','Fecha registro','Antigüedad (días)','Fecha cierre','Última actualización','Comentarios / trazabilidad','Imágenes','Evidencia 1','Evidencia 2','Evidencia 3','Evidencia 4','Evidencia 5'];
+    const headers = ['Test ID','Título del hallazgo','Módulo','Descripción del hallazgo','Estado','Severidad','Prioridad','Asignado a','Fecha registro','Antigüedad (días)','Fecha cierre','Última actualización','Comentarios / trazabilidad','Imágenes',
+      ...Array.from({length:MAX_IMAGES_PER_ISSUE}, (_, index) => `Evidencia ${index + 1}`)];
     const media = [];
     const drawingParts = [];
     const sheetRows = [];
@@ -1206,7 +1207,7 @@ async function downloadExcelWorkbookClient(exportIssues = filtered(), scope = ''
         STATUS_LABEL[issue.status] || issue.status || '', issue.severity || '',
         excelIssuePriority(issue), issue.assigned || '', excelReportDateText(created),
         age, excelReportDateText(solutionDate), excelReportDateText(latestUpdate),
-        trace, issueImages.length, '', '', '', '', ''
+        trace, issueImages.length, ...Array(MAX_IMAGES_PER_ISSUE).fill('')
       ];
       const rowNumber = issueIndex + 2;
       const cells = values.map((value, column) => excelReportXmlCell(
@@ -1242,9 +1243,9 @@ async function downloadExcelWorkbookClient(exportIssues = filtered(), scope = ''
       });
     }
 
-    const widthMap = [14,30,22,44,18,14,14,22,16,16,16,18,46,12,30,30,30,30,30];
+    const widthMap = [14,30,22,44,18,14,14,22,16,16,16,18,46,12,...Array(MAX_IMAGES_PER_ISSUE).fill(30)];
     const colsXml = widthMap.map((width, index) => `<col min="${index + 1}" max="${index + 1}" width="${width}" customWidth="1"/>`).join('');
-    const sheetXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheetViews><sheetView showGridLines="0" workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols>${colsXml}</cols><sheetData>${sheetRows.join('')}</sheetData><autoFilter ref="A1:S${exportIssues.length + 1}"/><drawing r:id="rId1"/></worksheet>`;
+    const sheetXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheetViews><sheetView showGridLines="0" workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols>${colsXml}</cols><sheetData>${sheetRows.join('')}</sheetData><autoFilter ref="A1:${excelReportColumn(14 + MAX_IMAGES_PER_ISSUE)}${exportIssues.length + 1}"/><drawing r:id="rId1"/></worksheet>`;
 
     const countBy = (field, items = exportIssues) => items.reduce((counts, issue) => {
       const key = String(issue[field] || 'Sin definir');
@@ -2380,7 +2381,7 @@ function openNew(){
   renderTracking();
   renderUploadPreview();
   renderDocumentPreview();
-  document.getElementById('captureStatus').textContent = 'Máx. 5 imágenes · PNG/JPG · o pega una captura con Ctrl+V';
+  document.getElementById('captureStatus').textContent = 'Máx. 10 imágenes · PNG/JPG · o pega una captura con Ctrl+V';
   document.getElementById('documentStatus').textContent = 'Máx. 3 MB · .doc o .docx · un documento por issue';
   document.getElementById('overlay').classList.add('show');
 }
@@ -2411,7 +2412,7 @@ window.openEdit = function(id, focusTracking=false){
   document.getElementById('btnSave').textContent = 'Guardar cambios';
   renderUploadPreview();
   renderDocumentPreview();
-  document.getElementById('captureStatus').textContent = 'Máx. 5 imágenes · PNG/JPG · o pega una captura con Ctrl+V';
+  document.getElementById('captureStatus').textContent = 'Máx. 10 imágenes · PNG/JPG · o pega una captura con Ctrl+V';
   document.getElementById('documentStatus').textContent = 'Máx. 3 MB · .doc o .docx · un documento por issue';
   document.getElementById('overlay').classList.add('show');
   if(focusTracking){
