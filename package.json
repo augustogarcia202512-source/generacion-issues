@@ -1,0 +1,16 @@
+{
+  "name": "generacion-issues-spellcheck",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:spellcheck": "esbuild src/spellcheck.js --bundle --platform=browser --format=iife --loader:.aff=text --loader:.dic=text --outfile=spellcheck.bundle.js",
+    "check:spellcheck": "node tests/spellcheck.test.js"
+  },
+  "dependencies": {
+    "dictionary-es": "4.0.0",
+    "nspell": "2.1.5"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  }
+}

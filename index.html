@@ -289,6 +289,14 @@ tr:hover .actions-cell{ background:#171d25; }
 .evidence-actions button:hover{ border-color: var(--amber); color: var(--amber); }
 .evidence-actions button:disabled{ opacity:.55; cursor:not-allowed; }
 .capture-status{ min-height:16px; margin-top:8px; color:var(--text-dim); font-size:11px; }
+.spellcheck-feedback{ margin-top:6px; color:var(--text-dim); font-size:11px; line-height:1.6; }
+.spellcheck-feedback:empty{ display:none; }
+.spellcheck-feedback.has-errors{ padding:7px 9px; border-left:2px solid var(--open); background:rgba(226,87,76,.07); }
+.spellcheck-error{ display:inline-flex; align-items:center; flex-wrap:wrap; gap:4px; margin:2px 6px 2px 0; }
+.spellcheck-word{ color:#ff8b82; text-decoration:underline wavy #ff8b82; text-underline-offset:3px; }
+.spellcheck-suggestion,.spellcheck-ignore{ border:1px solid var(--line); border-radius:3px; background:var(--panel); color:var(--text); padding:2px 6px; font-size:10px; cursor:pointer; }
+.spellcheck-suggestion:hover{ border-color:var(--amber); color:var(--amber); }
+.spellcheck-ignore{ color:var(--text-dim); }
 .upload-preview{ margin-top:10px; position:relative; display:inline-block; }
 .upload-preview img{ max-width:100%; max-height:160px; border-radius:2px; border:1px solid var(--line); display:block; }
 .upload-preview button{
@@ -390,8 +398,8 @@ tr:hover .actions-cell{ background:#171d25; }
         <div class="field"><label>Código del caso</label><input type="text" id="f_testid" readonly required></div>
         <div class="field"><label>Módulo afectado</label><select id="f_modulo" required></select></div>
       </div>
-      <div class="field"><label>Título del hallazgo</label><input type="text" id="f_formulario" placeholder="Ej. No permite registrar una baja" required></div>
-      <div class="field"><label>Descripción del hallazgo</label><textarea id="f_obs" placeholder="Describe el comportamiento encontrado..." required></textarea></div>
+      <div class="field"><label>Título del hallazgo</label><input type="text" id="f_formulario" placeholder="Ej. No permite registrar una baja" spellcheck="true" lang="es" required><div class="spellcheck-feedback" id="spellcheck-f_formulario" aria-live="polite"></div></div>
+      <div class="field"><label>Descripción del hallazgo</label><textarea id="f_obs" placeholder="Describe el comportamiento encontrado..." spellcheck="true" lang="es" required></textarea><div class="spellcheck-feedback" id="spellcheck-f_obs" aria-live="polite"></div></div>
       <div class="field">
         <label>Evidencia (imagen)</label>
         <div id="uploadZoneWrap">
@@ -453,9 +461,10 @@ tr:hover .actions-cell{ background:#171d25; }
           <small id="trackingCloseHint">Closed automático al registrar solución</small>
         </div>
         <div class="tracking-composer">
-          <textarea id="f_novedad" placeholder="Escribe la novedad, avance o solución..." maxlength="2000"></textarea>
+          <textarea id="f_novedad" placeholder="Escribe la novedad, avance o solución..." maxlength="2000" spellcheck="true" lang="es"></textarea>
           <button type="button" class="tracking-add" id="btnAddNovedad">Agregar actualización</button>
         </div>
+        <div class="spellcheck-feedback" id="spellcheck-f_novedad" aria-live="polite"></div>
       </div>
       <div class="modal-actions">
         <div>
@@ -485,7 +494,8 @@ tr:hover .actions-cell{ background:#171d25; }
     </div>
     <div class="field">
       <label for="quickCommentText">Comentario</label>
-      <textarea id="quickCommentText" maxlength="2000" placeholder="Escribe el avance, novedad o solución..."></textarea>
+      <textarea id="quickCommentText" maxlength="2000" placeholder="Escribe el avance, novedad o solución..." spellcheck="true" lang="es"></textarea>
+      <div class="spellcheck-feedback" id="spellcheck-quickCommentText" aria-live="polite"></div>
     </div>
     <div class="modal-actions">
       <button type="button" class="btn-secondary" id="btnQuickCommentCancel">Cancelar</button>
@@ -518,7 +528,8 @@ tr:hover .actions-cell{ background:#171d25; }
     <div class="module-add">
       <div class="module-name-field">
         <label for="moduleName">Nombre del nuevo módulo</label>
-        <input type="text" id="moduleName" maxlength="60" placeholder="Ej. Presupuestos Generales" autocomplete="off">
+        <input type="text" id="moduleName" maxlength="60" placeholder="Ej. Presupuestos Generales" autocomplete="off" spellcheck="true" lang="es">
+        <div class="spellcheck-feedback" id="spellcheck-moduleName" aria-live="polite"></div>
         <small class="module-field-hint">Ejemplo: Activos Fijos → AF-001</small>
       </div>
       <div class="module-prefix-field"><label>Prefijo</label><div class="module-prefix-preview" id="modulePrefixPreview">—</div></div>
@@ -547,6 +558,7 @@ tr:hover .actions-cell{ background:#171d25; }
   <div class="viewer-stage"><img class="viewer-image" id="lightboxImg" src="" alt="Evidencia ampliada"></div>
 </div>
 
+<script src="spellcheck.bundle.js"></script>
 <script>
 const STATUS_ORDER = ['Open','Blocked','ReadyRetest','InProgress','Closed','ReOpen'];
 const STATUS_LABEL = {Open:'Open',Blocked:'Blocked',ReadyRetest:'Ready for Retest',InProgress:'In Progress',Closed:'Closed',ReOpen:'Re-Open'};
@@ -1891,6 +1903,102 @@ function escapeHtml(s){
   return (s||'').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 }
 
+function initializeSpellcheck(){
+  const checker = window.issueSpellcheck;
+  const fieldIds = ['f_formulario', 'f_obs', 'f_novedad', 'quickCommentText', 'moduleName'];
+  if(!checker){
+    console.error('No se pudo cargar el corrector ortográfico local.');
+    fieldIds.forEach(id => {
+      document.getElementById(`spellcheck-${id}`).textContent = 'El corrector ortográfico no está disponible.';
+    });
+    return;
+  }
+
+  ['issue', 'issues', 'github', 'excel', 'word', 'testid', 'qa', 'status', 'severity',
+    'priority', 'retest', 'open', 'blocked', 'reopen', 'docx', 'id'].forEach(word => checker.add(word));
+
+  for(const id of fieldIds){
+    const input = document.getElementById(id);
+    const feedback = document.getElementById(`spellcheck-${id}`);
+    let timer;
+
+    const review = () => {
+      const text = input.value;
+      const errors = [];
+      const words = text.matchAll(/[\p{L}]+(?:['’][\p{L}]+)*/gu);
+      let checkedWords = 0;
+      for(const match of words){
+        const word = match[0];
+        const normalized = word.toLocaleLowerCase('es');
+        if(word.length < 3 || word.length > 35 || /^[A-ZÁÉÍÓÚÜÑ]+$/.test(word)) continue;
+        if(/[A-ZÁÉÍÓÚÜÑ]/.test(word.slice(1))) continue;
+        if(++checkedWords > 150) break;
+        if(checker.check(normalized)) continue;
+        errors.push({
+          word,
+          start: match.index,
+          end: match.index + word.length,
+          suggestions: checker.suggest(normalized).map(suggestion =>
+            /^[A-ZÁÉÍÓÚÜÑ]/.test(word)
+              ? suggestion.charAt(0).toLocaleUpperCase('es') + suggestion.slice(1)
+              : suggestion
+          )
+        });
+        if(errors.length >= 8) break;
+      }
+
+      if(!text.trim()){
+        feedback.textContent = '';
+        feedback.classList.remove('has-errors');
+        return;
+      }
+      if(!errors.length){
+        feedback.textContent = checkedWords > 150
+          ? 'Se revisaron las primeras 150 palabras; no se detectaron errores.'
+          : 'No se detectaron posibles errores ortográficos.';
+        feedback.classList.remove('has-errors');
+        return;
+      }
+
+      feedback.classList.add('has-errors');
+      feedback.innerHTML = `Posibles errores: ${errors.map(error => `
+        <span class="spellcheck-error">
+          <span class="spellcheck-word">${escapeHtml(error.word)}</span>
+          ${error.suggestions.map(suggestion => `<button type="button" class="spellcheck-suggestion" data-start="${error.start}" data-end="${error.end}" data-suggestion="${escapeHtml(suggestion)}" aria-label="Cambiar ${escapeHtml(error.word)} por ${escapeHtml(suggestion)}">${escapeHtml(suggestion)}</button>`).join('')}
+          <button type="button" class="spellcheck-ignore" data-ignore="${escapeHtml(error.word)}" aria-label="Ignorar ${escapeHtml(error.word)}">Ignorar</button>
+        </span>`).join('')}`;
+    };
+
+    input.addEventListener('input', () => {
+      clearTimeout(timer);
+      timer = setTimeout(review, 350);
+    });
+    input.addEventListener('blur', () => {
+      clearTimeout(timer);
+      timer = setTimeout(review, 100);
+    });
+    feedback.addEventListener('mousedown', event => {
+      if(event.target.closest('button')) event.preventDefault();
+    });
+    feedback.addEventListener('click', event => {
+      const suggestion = event.target.closest('.spellcheck-suggestion');
+      if(suggestion){
+        const start = Number(suggestion.dataset.start);
+        const end = Number(suggestion.dataset.end);
+        input.setRangeText(suggestion.dataset.suggestion, start, end, 'select');
+        input.dispatchEvent(new Event('input', {bubbles:true}));
+        input.focus();
+        return;
+      }
+      const ignored = event.target.closest('.spellcheck-ignore');
+      if(ignored){
+        checker.add(ignored.dataset.ignore.toLocaleLowerCase('es'));
+        review();
+      }
+    });
+  }
+}
+
 window.downloadIssueDocument = function(issueId){
   const file = documentsCache[issueId];
   if(!file || typeof file.dataUrl !== 'string'){
@@ -2332,6 +2440,7 @@ window.kanbanDrop = async function(event){
   }
 };
 
+initializeSpellcheck();
 Promise.all([loadModules(), loadIssues(), loadAgeLimit()]);
 </script>
 </body>
