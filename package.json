@@ -4,10 +4,12 @@
   "type": "module",
   "scripts": {
     "build:spellcheck": "esbuild src/spellcheck.js --bundle --platform=browser --format=iife --loader:.aff=text --loader:.dic=text --outfile=spellcheck.bundle.js",
+    "build:docx-preview": "esbuild src/docx-preview.js --bundle --platform=browser --format=iife --global-name=DocxPreview --outfile=docx-preview.bundle.js",
     "check:spellcheck": "node tests/spellcheck.test.js"
   },
   "dependencies": {
     "dictionary-es": "4.0.0",
+    "mammoth": "1.13.0",
     "nspell": "2.1.5"
   },
   "devDependencies": {

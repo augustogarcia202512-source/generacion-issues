@@ -68,6 +68,8 @@ h1 span{ color: var(--text-dim); font-weight:500; }
 .module-btn{ background:none; border:1px solid var(--line); color:var(--text); padding:12px 16px; border-radius:2px; cursor:pointer; font-weight:700; }
 .module-btn:hover{ border-color:var(--amber); color:var(--amber); }
 #modulesOverlay .modal{ max-width:620px; }
+#peopleOverlay .modal{ max-width:620px; }
+#peopleOverlay .module-add{ grid-template-columns:1fr; }
 .modules-header{ display:flex; align-items:center; gap:12px; margin-bottom:18px; }
 .modules-icon{ width:42px; height:42px; display:grid; place-items:center; background:var(--amber); color:#1A1305; border-radius:8px; font-size:21px; font-weight:800; box-shadow:0 8px 24px rgba(232,163,61,.18); }
 .modules-header h2{ margin:0; }
@@ -299,7 +301,9 @@ tr:hover .actions-cell{ background:#171d25; }
 .spellcheck-ignore{ color:var(--text-dim); }
 .upload-preview{ margin-top:10px; position:relative; display:inline-block; }
 .upload-preview img{ max-width:100%; max-height:160px; border-radius:2px; border:1px solid var(--line); display:block; }
-.upload-preview button{
+.upload-image-preview{ display:block; padding:0; border:0; background:none; cursor:zoom-in; }
+.upload-image-preview:focus-visible{ outline:2px solid var(--amber); outline-offset:2px; }
+.upload-preview button[data-index]{
   position:absolute; top:6px; right:6px; background: rgba(6,12,18,0.85); color:var(--text);
   border:1px solid var(--line); border-radius:2px; font-size:11px; padding:3px 8px; cursor:pointer;
 }
@@ -308,6 +312,13 @@ tr:hover .actions-cell{ background:#171d25; }
 .document-preview button,.document-download{ background:none; border:1px solid var(--line); color:var(--text-dim); padding:6px 9px; border-radius:3px; cursor:pointer; font-size:11px; }
 .document-preview button:hover,.document-download:hover{ border-color:var(--amber); color:var(--amber); }
 .document-download{ display:block; margin-top:5px; max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.document-preview-actions{ display:flex; gap:6px; flex:0 0 auto; }
+.viewer.document-mode .viewer-stage{ padding:0; }
+.viewer-document{ display:none; width:100%; height:100%; border:0; background:#fff; }
+.viewer.document-mode .viewer-document{ display:block; }
+.viewer.document-mode .viewer-image{ display:none; }
+.viewer-document-message{ padding:32px; color:#253344; font:15px/1.6 'Inter',sans-serif; }
+.viewer-document-message h2{ margin-bottom:12px; }
 .thumb-stack{ display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
 .thumb-stack .thumb{ width:34px; height:34px; object-fit:cover; border-radius:2px; border:1px solid var(--line); cursor:pointer; display:block; }
 .thumb-stack .thumb.is-large{ width:72px; height:72px; }
@@ -359,6 +370,7 @@ tr:hover .actions-cell{ background:#171d25; }
       <input type="file" id="backupFile" accept="application/json,.json" hidden>
       <button class="module-btn" id="btnExportExcel">Descargar Excel</button>
       <button class="module-btn" id="btnModules">Módulos</button>
+      <button class="module-btn" id="btnPeople">Personas</button>
       <button class="new-btn" id="btnNew">+ Registrar issue</button>
     </div>
   </div>
@@ -435,6 +447,7 @@ tr:hover .actions-cell{ background:#171d25; }
             <option value="Closed">Closed</option>
             <option value="ReOpen">Re-Open</option>
           </select>
+          <small class="capture-status" id="issueClosureDate">Fecha de cierre: —</small>
         </div>
         <div class="field">
           <label>Severity</label>
@@ -447,7 +460,7 @@ tr:hover .actions-cell{ background:#171d25; }
         <div class="field"><label>Priority</label>
           <select id="f_priority"><option>Alta</option><option>Media</option><option>Baja</option></select>
         </div>
-        <div class="field"><label>Asignado a</label><input type="text" id="f_assigned" placeholder="Nombre"></div>
+        <div class="field"><label for="f_assigned">Asignado a</label><select id="f_assigned"></select></div>
       </div>
       <div class="field tracking-field">
         <label>Trazabilidad / novedades</label>
@@ -542,6 +555,29 @@ tr:hover .actions-cell{ background:#171d25; }
   </div>
 </div>
 
+<div class="overlay" id="peopleOverlay">
+  <div class="modal">
+    <div class="modules-header">
+      <div class="modules-icon" aria-hidden="true">P</div>
+      <div>
+        <h2>Administrar personas</h2>
+        <p>Define las personas disponibles para asignar issues.</p>
+      </div>
+    </div>
+    <div class="module-add">
+      <div class="module-name-field">
+        <label for="personName">Nombre de la persona</label>
+        <input type="text" id="personName" maxlength="80" placeholder="Ej. María Pérez" autocomplete="off">
+      </div>
+    </div>
+    <button class="new-btn" id="btnAddPerson" style="margin-top:12px;width:100%">Agregar persona</button>
+    <div class="module-list" id="peopleList"></div>
+    <div class="modal-actions" style="margin-top:18px">
+      <button class="btn-secondary" id="btnClosePeople">Cerrar</button>
+    </div>
+  </div>
+</div>
+
 <div class="viewer" id="lightbox" role="dialog" aria-modal="true" aria-label="Vista ampliada de evidencia">
   <div class="viewer-toolbar">
     <div>
@@ -549,22 +585,28 @@ tr:hover .actions-cell{ background:#171d25; }
       <div class="viewer-hint">← → para navegar · Esc para cerrar</div>
     </div>
     <div class="viewer-actions">
+      <button type="button" id="viewerDownload" title="Descargar documento Word" style="display:none">Descargar</button>
       <button type="button" id="viewerFit" title="Ajustar a la pantalla">Ajustar</button>
       <button type="button" id="viewerPrev" title="Evidencia anterior">Anterior</button>
       <button type="button" id="viewerNext" title="Evidencia siguiente">Siguiente</button>
       <button type="button" id="viewerClose" title="Cerrar vista ampliada">Cerrar ×</button>
     </div>
   </div>
-  <div class="viewer-stage"><img class="viewer-image" id="lightboxImg" src="" alt="Evidencia ampliada"></div>
+  <div class="viewer-stage">
+    <img class="viewer-image" id="lightboxImg" src="" alt="Evidencia ampliada">
+    <iframe class="viewer-document" id="viewerDocument" title="Vista previa del documento Word" sandbox></iframe>
+  </div>
 </div>
 
 <script src="spellcheck.bundle.js"></script>
+<script src="docx-preview.bundle.js"></script>
 <script>
 const STATUS_ORDER = ['Open','Blocked','ReadyRetest','InProgress','Closed','ReOpen'];
 const STATUS_LABEL = {Open:'Open',Blocked:'Blocked',ReadyRetest:'Ready for Retest',InProgress:'In Progress',Closed:'Closed',ReOpen:'Re-Open'};
 
 let issues = [];
 let modules = [];
+let people = [];
 let imagesCache = {}; // id -> array of dataURLs, loaded from separate storage keys
 let documentsCache = {}; // id -> Word document data
 let editingId = null;
@@ -721,8 +763,45 @@ function renderModuleOptions(selectedName){
   if(!select.value && modules[0]) select.value = modules[0].name;
 }
 
+function issueAssignedName(issue){
+  return typeof issue.assigned === 'string' ? issue.assigned.trim() : '';
+}
+
+function renderPeopleOptions(selectedName = document.getElementById('f_assigned').value){
+  const select = document.getElementById('f_assigned');
+  const assignedNames = [...new Set([
+    ...people,
+    ...issues.map(issueAssignedName).filter(Boolean),
+    selectedName || ''
+  ])].filter(Boolean).sort((a, b) => a.localeCompare(b, 'es'));
+  select.innerHTML = `<option value="">Sin asignar</option>${assignedNames.map(name =>
+    `<option value="${escapeHtml(name)}">${escapeHtml(name)}${people.includes(name) ? '' : ' (fuera de lista)'}</option>`
+  ).join('')}`;
+  select.value = selectedName && assignedNames.includes(selectedName) ? selectedName : '';
+}
+
 async function saveModules(){
   await storageApi.set('modules-list', JSON.stringify(modules));
+}
+
+async function savePeople(){
+  const saved = await storageApi.set('people-list', JSON.stringify(people));
+  if(!saved) throw new Error('No se pudo guardar la lista de personas.');
+}
+
+async function loadPeople(){
+  const result = await storageApi.get('people-list');
+  if(result && result.value){
+    const parsed = JSON.parse(result.value);
+    if(!Array.isArray(parsed) || !parsed.every(person => typeof person === 'string')){
+      throw new Error('La lista guardada de personas no tiene un formato válido.');
+    }
+    people = [...new Set(parsed.map(person => person.trim()).filter(Boolean))];
+  }else{
+    people = [...new Set(issues.map(issueAssignedName).filter(Boolean))];
+    if(people.length) await savePeople();
+  }
+  renderPeopleOptions();
 }
 
 async function loadModules(){
@@ -788,6 +867,7 @@ function exportApplicationBackup(){
     version: 1,
     exportedAt: new Date().toISOString(),
     modules: modules.map(module => ({...module})),
+    people: people.slice(),
     issues: issues.map(issue => ({...issue})),
     images: Object.fromEntries(issues.map(issue => [issue.id, (imagesCache[issue.id] || []).slice()] )),
     documents: Object.fromEntries(issues.filter(issue => documentsCache[issue.id]).map(issue => [issue.id, documentsCache[issue.id]])),
@@ -810,6 +890,11 @@ function validateApplicationBackup(backup){
   }
   if(!Array.isArray(backup.modules) || !backup.modules.length){
     throw new Error('El respaldo no contiene módulos válidos.');
+  }
+  if(backup.people !== undefined && (!Array.isArray(backup.people) ||
+     !backup.people.every(person => typeof person === 'string' && person.trim()) ||
+     new Set(backup.people.map(person => person.trim().toLocaleLowerCase('es'))).size !== backup.people.length)){
+    throw new Error('El respaldo contiene una lista de personas inválida.');
   }
   if(!Array.isArray(backup.issues) || !backup.issues.every(issue => issue && typeof issue === 'object')){
     throw new Error('El respaldo no contiene una lista válida de issues.');
@@ -863,6 +948,10 @@ async function importApplicationBackup(file){
       await storageApi.delete(`issue-document:${id}`);
     }
     await storageApi.set('modules-list', JSON.stringify(backup.modules));
+    const restoredPeople = backup.people === undefined
+      ? [...new Set(backup.issues.map(issue => (issue.assigned || '').trim()).filter(Boolean))]
+      : backup.people.map(person => person.trim());
+    await storageApi.set('people-list', JSON.stringify(restoredPeople));
     await storageApi.set('issues-list', JSON.stringify(backup.issues));
 
     const restoredImages = {};
@@ -889,6 +978,7 @@ async function importApplicationBackup(file){
     }
 
     modules = backup.modules.map(module => ({...module}));
+    people = restoredPeople;
     issues = backup.issues.map(issue => ({...issue}));
     imagesCache = restoredImages;
     documentsCache = restoredDocuments;
@@ -898,7 +988,9 @@ async function importApplicationBackup(file){
     filterModule = '';
     filterStatus = '';
     renderModuleOptions(modules[0] && modules[0].name);
+    renderPeopleOptions();
     renderModules();
+    renderPeople();
     render();
     document.getElementById('lastUpdate').textContent = 'Última actualización: ' + new Date().toLocaleString('es-CO');
     alert(`Importación completada: ${issueCount} issues, ${evidenceCount} evidencias y ${documentCount} documentos Word restaurados.`);
@@ -1026,12 +1118,17 @@ function issueAgeDays(issue, today = new Date()){
 }
 
 function excelReportSolutionDate(issue){
-  const solutions = (issue.novedades || [])
+  const solutionDates = (issue.novedades || [])
     .filter(item => item && typeof item === 'object' && item.type === 'Solución')
     .map(item => excelReportDate(item.createdAt || item.date))
-    .filter(Boolean)
-    .sort((a, b) => b - a);
-  return solutions[0] || null;
+    .filter(Boolean);
+  const closedAt = excelReportDate(issue.closedAt);
+  if(closedAt) solutionDates.push(closedAt);
+  return solutionDates.sort((a, b) => b - a)[0] || null;
+}
+
+function issueClosureDateText(issue){
+  return excelReportDateText(excelReportSolutionDate(issue)) || '—';
 }
 
 function excelReportXmlCell(reference, value, style = 2){
@@ -1049,6 +1146,32 @@ function excelReportColumn(index){
     index = Math.floor((index - 1) / 26);
   }
   return column;
+}
+
+function excelIssuePriority(issue){
+  const priority = issue.priority || issue.Priority || issue.prioridad;
+  return priority ? String(priority).trim() : 'Sin definir';
+}
+
+function excelChartCellRange(column, firstRow, lastRow){
+  return `'Resumen'!$${column}$${firstRow}:$${column}$${lastRow}`;
+}
+
+function excelChartXml(title, chartIndex, firstRow, lastRow, categories, series, pointColors = []){
+  const axisId = 700000 + chartIndex * 2;
+  const categoriesXml = categories.map((value, index) =>
+    `<c:pt idx="${index}"><c:v>${excelXmlText(value)}</c:v></c:pt>`).join('');
+  const seriesXml = series.map((item, index) => {
+    const dataPoints = item.values.map((value, pointIndex) =>
+      `<c:pt idx="${pointIndex}"><c:v>${Number(value) || 0}</c:v></c:pt>`).join('');
+    const pointStyles = item.pointColors ? item.pointColors.map((color, pointIndex) =>
+      `<c:dPt><c:idx val="${pointIndex}"/><c:spPr><a:solidFill><a:srgbClr val="${color}"/></a:solidFill></c:spPr></c:dPt>`).join('') : '';
+    const color = item.color || pointColors[index] || '4A9FE8';
+    const valueColumn = excelReportColumn(item.column);
+    const headerCell = `'Resumen'!$${valueColumn}$${firstRow - 1}`;
+    return `<c:ser><c:idx val="${index}"/><c:order val="${index}"/><c:tx><c:strRef><c:f>${headerCell}</c:f><c:strCache><c:ptCount val="1"/><c:pt idx="0"><c:v>${excelXmlText(item.name)}</c:v></c:pt></c:strCache></c:strRef></c:tx><c:spPr><a:solidFill><a:srgbClr val="${color}"/></a:solidFill><a:ln><a:solidFill><a:srgbClr val="${color}"/></a:solidFill></a:ln></c:spPr>${pointStyles}<c:cat><c:strRef><c:f>${excelChartCellRange('A', firstRow, lastRow)}</c:f><c:strCache><c:ptCount val="${categories.length}"/>${categoriesXml}</c:strCache></c:strRef></c:cat><c:val><c:numRef><c:f>${excelChartCellRange(valueColumn, firstRow, lastRow)}</c:f><c:numCache><c:formatCode>General</c:formatCode><c:ptCount val="${item.values.length}"/>${dataPoints}</c:numCache></c:numRef></c:val></c:ser>`;
+  }).join('');
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><c:lang val="es-CO"/><c:chart><c:title><c:tx><c:rich><a:bodyPr/><a:lstStyle/><a:p><a:pPr><a:defRPr/></a:pPr><a:r><a:rPr lang="es-CO" sz="1400" b="1"/><a:t>${excelXmlText(title)}</a:t></a:r><a:endParaRPr lang="es-CO"/></a:p></c:rich></c:tx><c:overlay val="0"/></c:title><c:plotArea><c:layout/><c:barChart><c:barDir val="col"/><c:grouping val="clustered"/><c:varyColors val="${series.length === 1 && series[0].pointColors ? 1 : 0}"/>${seriesXml}<c:dLbls><c:showVal val="1"/></c:dLbls><c:gapWidth val="80"/><c:axId val="${axisId}"/><c:axId val="${axisId + 1}"/></c:barChart><c:catAx><c:axId val="${axisId}"/><c:scaling><c:orientation val="minMax"/></c:scaling><c:axPos val="b"/><c:majorTickMark val="none"/><c:minorTickMark val="none"/><c:tickLblPos val="nextTo"/><c:crossAx val="${axisId + 1}"/><c:crosses val="autoZero"/><c:auto val="1"/><c:lblAlgn val="ctr"/><c:lblOffset val="100"/></c:catAx><c:valAx><c:axId val="${axisId + 1}"/><c:scaling><c:orientation val="minMax"/></c:scaling><c:axPos val="l"/><c:majorGridlines><c:spPr><a:ln w="9525"><a:solidFill><a:srgbClr val="D9E0E7"/></a:solidFill></a:ln></c:spPr></c:majorGridlines><c:numFmt formatCode="General" sourceLinked="1"/><c:majorTickMark val="none"/><c:minorTickMark val="none"/>  <c:tickLblPos val="nextTo"/><c:crossAx val="${axisId}"/><c:crosses val="autoZero"/><c:crossBetween val="between"/></c:valAx></c:plotArea>${series.length > 1 ? '<c:legend><c:legendPos val="b"/><c:overlay val="0"/></c:legend>' : ''}<c:plotVisOnly val="1"/><c:dispBlanksAs val="gap"/></c:chart></c:chartSpace>`;
 }
 
 async function downloadExcelWorkbookClient(exportIssues = filtered(), scope = ''){
@@ -1081,7 +1204,7 @@ async function downloadExcelWorkbookClient(exportIssues = filtered(), scope = ''
       const values = [
         issue.testid || '', issue.formulario || '', issue.modulo || '', issue.obs || '',
         STATUS_LABEL[issue.status] || issue.status || '', issue.severity || '',
-        issue.priority || '', issue.assigned || '', excelReportDateText(created),
+        excelIssuePriority(issue), issue.assigned || '', excelReportDateText(created),
         age, excelReportDateText(solutionDate), excelReportDateText(latestUpdate),
         trace, issueImages.length, '', '', '', '', ''
       ];
@@ -1134,10 +1257,17 @@ async function downloadExcelWorkbookClient(exportIssues = filtered(), scope = ''
     const openIssues = exportIssues.filter(issue => !isClosed(issue));
     const statusCounts = countBy('status');
     const severityValues = [...new Set(['Alta','Media','Baja', ...exportIssues.map(issue => issue.severity).filter(Boolean)])];
+    const priorityValues = [...new Set(['Alta','Media','Baja','Sin definir', ...exportIssues.map(excelIssuePriority)])];
     const severityOrder = ['Critical','Crítica','Alta','High','Media','Medium','Baja','Low'];
     severityValues.sort((a, b) => {
       const ai = severityOrder.indexOf(a), bi = severityOrder.indexOf(b);
       if(ai >= 0 || bi >= 0) return (ai < 0 ? severityOrder.length : ai) - (bi < 0 ? severityOrder.length : bi);
+      return a.localeCompare(b);
+    });
+    const priorityOrder = ['Alta','Media','Baja','High','Medium','Low','Critical','Crítica','Sin definir'];
+    priorityValues.sort((a, b) => {
+      const ai = priorityOrder.indexOf(a), bi = priorityOrder.indexOf(b);
+      if(ai >= 0 || bi >= 0) return (ai < 0 ? priorityOrder.length : ai) - (bi < 0 ? priorityOrder.length : bi);
       return a.localeCompare(b);
     });
     const moduleNames = [...new Set(exportIssues.map(issue => issue.modulo || 'Sin definir'))].sort((a,b) => a.localeCompare(b));
@@ -1155,6 +1285,10 @@ async function downloadExcelWorkbookClient(exportIssues = filtered(), scope = ''
     const severityRows = severityValues.map(severity => {
       const matches = exportIssues.filter(issue => issue.severity === severity);
       return [severity, matches.filter(issue => !isClosed(issue)).length, matches.filter(isClosed).length, matches.length];
+    });
+    const priorityRows = priorityValues.map(priority => {
+      const matches = exportIssues.filter(issue => excelIssuePriority(issue) === priority);
+      return [priority, matches.filter(issue => !isClosed(issue)).length, matches.filter(isClosed).length, matches.length];
     });
     const moduleRows = moduleNames.map(module => {
       const matches = exportIssues.filter(issue => (issue.modulo || 'Sin definir') === module);
@@ -1194,6 +1328,7 @@ async function downloadExcelWorkbookClient(exportIssues = filtered(), scope = ''
       return age !== null && age > ageLimitDays;
     }).length;
     const summaryRows = [];
+    const chartRanges = {};
     let summaryRow = 1;
     const summaryLine = (values, style, height) => {
       const cells = values.map((value, index) => {
@@ -1205,22 +1340,28 @@ async function downloadExcelWorkbookClient(exportIssues = filtered(), scope = ''
       summaryRow++;
     };
     const addSection = (title, headings, rows) => {
+      const titleRow = summaryRow;
       summaryLine([title, '', '', ''], 3, 24);
       summaryLine(headings, 1, 22);
+      const firstDataRow = summaryRow;
       rows.forEach(row => {
         const rowStyle = row[0] === 'Total' ? 4 : 2;
         summaryLine(row.slice(0,4).map((value, index) => Array.isArray(value)
           ? value
           : [value, index === 2 && title === 'Issues por estado' ? 5 : rowStyle]), 2);
       });
+      const lastDataRow = summaryRow - 1;
       summaryRow++;
+      return {titleRow, firstDataRow, lastDataRow};
     };
     summaryLine([['Resumen de issues / Bitácora QA', 6], '', '', ''], 6, 30);
     summaryLine([`Alcance: ${total} issues (según los filtros aplicados) · ${scope || 'Todos los registros'} · ${excelReportDateText(today)}`, '', '', ''], 2, 22);
     summaryLine([`Alerta de antigüedad: issue abierto con más de ${ageLimitDays} días · ${overdueCount} ${overdueCount === 1 ? 'alerta' : 'alertas'}`, '', '', ''], 2, 22);
     summaryRow++;
-    addSection('Issues por estado', ['Estado','Cantidad','% del total',''], statusRows);
-    addSection('Issues por severidad', ['Severidad','Abiertos','Cerrados','Total'], severityRows);
+    chartRanges.status = addSection('Issues por estado', ['Estado','Cantidad','% del total',''], statusRows);
+    chartRanges.status.lastDataRow--;
+    chartRanges.severity = addSection('Issues por severidad', ['Severidad','Abiertos','Cerrados','Total'], severityRows);
+    chartRanges.priority = addSection('Issues por prioridad', ['Prioridad','Abiertos','Cerrados','Total'], priorityRows);
     addSection('Issues por módulo', ['Módulo','Abiertos','Cerrados','Total'], moduleRows);
     addSection('Tendencia semanal (últimas 8 semanas)', ['Semana del','Registrados','Cerrados',''], weekRows);
     addSection('Issues por responsable', ['Responsable','Abiertos','Cerrados','Total'], ownerRows);
@@ -1243,14 +1384,53 @@ async function downloadExcelWorkbookClient(exportIssues = filtered(), scope = ''
 
     const detailViews = `<sheetViews><sheetView showGridLines="0" workbookViewId="0"><pane ySplit="3" topLeftCell="A4" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>`;
     const sheet2Cols = '<col min="1" max="1" width="46" customWidth="1"/><col min="2" max="2" width="18" customWidth="1"/><col min="3" max="4" width="18" customWidth="1"/>';
-    const metricsXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">${detailViews}<cols>${sheet2Cols}</cols><sheetData>${summaryRows.join('')}</sheetData></worksheet>`;
+    const chartDefinitions = [
+      {
+        title:'Issues por estado',
+        range:chartRanges.status,
+        categories:statusRows.slice(0, -1).map(row => row[0]),
+        series:[{name:'Cantidad',column:2,values:statusRows.slice(0, -1).map(row => row[1]),
+          pointColors:['E84A42','E8A33D','4A9FE8','8667D7','35B68A','9AA8B7']}]
+      },
+      {
+        title:'Issues por severidad',
+        range:chartRanges.severity,
+        categories:severityRows.map(row => row[0]),
+        series:[
+          {name:'Abiertos',column:2,values:severityRows.map(row => row[1]),color:'E84A42'},
+          {name:'Cerrados',column:3,values:severityRows.map(row => row[2]),color:'35B68A'}
+        ]
+      },
+      {
+        title:'Issues por prioridad',
+        range:chartRanges.priority,
+        categories:priorityRows.map(row => row[0]),
+        series:[
+          {name:'Abiertos',column:2,values:priorityRows.map(row => row[1]),color:'E84A42'},
+          {name:'Cerrados',column:3,values:priorityRows.map(row => row[2]),color:'35B68A'}
+        ]
+      }
+    ];
+    const chartAnchors = chartDefinitions.map((chart, index) => {
+      const row = index * 17;
+      return `<xdr:oneCellAnchor><xdr:from><xdr:col>4</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>${row}</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from><xdr:ext cx="6858000" cy="3810000"/><xdr:graphicFrame macro=""><xdr:nvGraphicFramePr><xdr:cNvPr id="${index + 1}" name="${excelXmlText(chart.title)}"/><xdr:cNvGraphicFramePr/></xdr:nvGraphicFramePr><xdr:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/></xdr:xfrm><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/chart"><c:chart xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:id="rId${index + 1}"/></a:graphicData></a:graphic></xdr:graphicFrame><xdr:clientData/></xdr:oneCellAnchor>`;
+    }).join('');
+    const summaryDrawing = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">${chartAnchors}</xdr:wsDr>`;
+    const summaryDrawingRelationships = chartDefinitions.map((chart, index) =>
+      `<Relationship Id="rId${index + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart" Target="../charts/chart${index + 1}.xml"/>`).join('');
+    const chartEntries = chartDefinitions.map((chart, index) => ({
+      name:`xl/charts/chart${index + 1}.xml`,
+      data:excelChartXml(chart.title, index + 1, chart.range.firstDataRow, chart.range.lastDataRow,
+        chart.categories, chart.series)
+    }));
+    const metricsXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">${detailViews}<cols>${sheet2Cols}</cols><sheetData>${summaryRows.join('')}</sheetData><drawing r:id="rId1"/></worksheet>`;
     const drawingXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">${drawingParts.join('')}</xdr:wsDr>`;
     const drawingRelationships = media.map((item, index) => `<Relationship Id="rId${index + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/${item.name.split('/').pop()}"/>`).join('');
 
     const workbookXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Bitácora" sheetId="1" r:id="rId1"/><sheet name="Resumen" sheetId="2" r:id="rId3"/></sheets></workbook>`;
     const stylesXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="5"><font><sz val="10"/><name val="Arial"/></font><font><b/><color rgb="FFFFFFFF"/><sz val="10"/><name val="Arial"/></font><font><b/><color rgb="FFFFFFFF"/><sz val="14"/><name val="Arial"/></font><font><b/><sz val="10"/><name val="Arial"/></font><font><b/><color rgb="FF9C1C16"/><sz val="10"/><name val="Arial"/></font></fonts><fills count="5"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF1F3A5F"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFEAF0F6"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFFFD9D6"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="2"><border/><border><left style="thin"><color rgb="FFD4DEE7"/></left><right style="thin"><color rgb="FFD4DEE7"/></right><top style="thin"><color rgb="FFD4DEE7"/></top><bottom style="thin"><color rgb="FFD4DEE7"/></bottom></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="8"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf><xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf><xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf><xf numFmtId="0" fontId="3" fillId="3" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf><xf numFmtId="10" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf><xf numFmtId="0" fontId="2" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="center"/></xf><xf numFmtId="0" fontId="4" fillId="4" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`;
     const entries = [
-      {name:'[Content_Types].xml', data:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Default Extension="jpg" ContentType="image/jpeg"/><Default Extension="jpeg" ContentType="image/jpeg"/><Default Extension="gif" ContentType="image/gif"/><Default Extension="bmp" ContentType="image/bmp"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/><Override PartName="/xl/drawings/drawing1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/></Types>'},
+      {name:'[Content_Types].xml', data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Default Extension="jpg" ContentType="image/jpeg"/><Default Extension="jpeg" ContentType="image/jpeg"/><Default Extension="gif" ContentType="image/gif"/><Default Extension="bmp" ContentType="image/bmp"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/><Override PartName="/xl/drawings/drawing1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/><Override PartName="/xl/drawings/drawing2.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/><Override PartName="/xl/charts/chart1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.chart+xml"/><Override PartName="/xl/charts/chart2.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.chart+xml"/><Override PartName="/xl/charts/chart3.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.chart+xml"/></Types>`},
       {name:'_rels/.rels', data:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>'},
       {name:'xl/workbook.xml', data:workbookXml},
       {name:'xl/_rels/workbook.xml.rels', data:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/></Relationships>'},
@@ -1260,6 +1440,10 @@ async function downloadExcelWorkbookClient(exportIssues = filtered(), scope = ''
       {name:'xl/worksheets/_rels/sheet1.xml.rels', data:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing1.xml"/></Relationships>'},
       {name:'xl/drawings/drawing1.xml', data:drawingXml},
       {name:'xl/drawings/_rels/drawing1.xml.rels', data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${drawingRelationships}</Relationships>`},
+      {name:'xl/worksheets/_rels/sheet2.xml.rels', data:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing2.xml"/></Relationships>'},
+      {name:'xl/drawings/drawing2.xml', data:summaryDrawing},
+      {name:'xl/drawings/_rels/drawing2.xml.rels', data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${summaryDrawingRelationships}</Relationships>`},
+      ...chartEntries,
       ...media
     ];
 
@@ -1295,11 +1479,18 @@ async function downloadExcelWorkbook(){
       filterStatus ? STATUS_LABEL[filterStatus] : 'Todos los estados',
       searchTerm ? `Búsqueda: ${searchTerm}` : ''
     ].filter(Boolean).join(' · ');
-    const response = await fetch('/api/export-excel', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({issues: exportIssues, images: imagesCache, scope, ageLimitDays})
-    });
+    let response;
+    try{
+      response = await fetch('/api/export-excel', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({issues: exportIssues, images: imagesCache, scope, ageLimitDays})
+      });
+    }catch(error){
+      console.warn('No está disponible la API de exportación; se usará la generación local del Excel.', error);
+      await downloadExcelWorkbookClient(exportIssues, scope);
+      return;
+    }
     if(response.status === 404 || response.status === 405){
       await downloadExcelWorkbookClient(exportIssues, scope);
       return;
@@ -1333,6 +1524,13 @@ let viewerImages = [];
 let viewerIndex = 0;
 
 function renderViewer(){
+  const viewer = document.getElementById('lightbox');
+  viewer.classList.remove('document-mode');
+  document.getElementById('viewerDownload').style.display = 'none';
+  document.getElementById('viewerFit').style.display = '';
+  document.getElementById('viewerPrev').style.display = '';
+  document.getElementById('viewerNext').style.display = '';
+  document.getElementById('viewerDocument').srcdoc = '';
   const image = document.getElementById('lightboxImg');
   image.src = viewerImages[viewerIndex] || '';
   document.getElementById('lightboxTitle').textContent = `${viewerIndex + 1} de ${viewerImages.length}`;
@@ -1348,8 +1546,115 @@ function openLightbox(src){
   document.getElementById('lightbox').classList.add('show');
 }
 
+function sanitizedWordPreviewHtml(html){
+  const parsed = new DOMParser().parseFromString(html, 'text/html');
+  const allowedElements = new Set([
+    'P','DIV','SPAN','BR','H1','H2','H3','H4','H5','H6','STRONG','B','EM','I','U','S','DEL',
+    'UL','OL','LI','BLOCKQUOTE','PRE','CODE','TABLE','THEAD','TBODY','TR','TH','TD','IMG'
+  ]);
+  const clean = parent => {
+    for(const node of [...parent.childNodes]){
+      if(node.nodeType === Node.ELEMENT_NODE){
+        if(!allowedElements.has(node.tagName)){
+          clean(node);
+          node.replaceWith(...node.childNodes);
+          continue;
+        }
+        const allowedAttributes = node.tagName === 'IMG' ? new Set(['src','alt']) : new Set();
+        for(const attribute of [...node.attributes]){
+          if(!allowedAttributes.has(attribute.name.toLowerCase())) node.removeAttribute(attribute.name);
+        }
+        if(node.tagName === 'IMG' && !/^data:image\/(?:png|jpeg|gif|bmp|webp);base64,/i.test(node.getAttribute('src') || '')){
+          node.remove();
+          continue;
+        }
+        clean(node);
+      }else if(node.nodeType !== Node.TEXT_NODE){
+        node.remove();
+      }
+    }
+  };
+  clean(parsed.body);
+  return parsed.body.innerHTML;
+}
+
+function documentBytes(file){
+  const match = /^data:application\/(?:msword|vnd\.openxmlformats-officedocument\.wordprocessingml\.document);base64,([A-Za-z0-9+/]+=*)$/.exec(file.dataUrl || '');
+  if(!match) throw new Error('El documento Word adjunto no tiene un formato válido.');
+  const binary = atob(match[1]);
+  const bytes = new Uint8Array(binary.length);
+  for(let index = 0; index < binary.length; index++) bytes[index] = binary.charCodeAt(index);
+  return bytes;
+}
+
+function downloadWordFile(file){
+  if(!file || typeof file.dataUrl !== 'string'){
+    alert('No se encontró el documento Word adjunto.');
+    return;
+  }
+  try{
+    const bytes = documentBytes(file);
+    const url = URL.createObjectURL(new Blob([bytes], {type:file.type || 'application/octet-stream'}));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = file.name;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }catch(error){
+    alert(error.message || 'El documento Word adjunto no tiene un formato válido.');
+  }
+}
+
+window.openIssueDocument = async function(issueId){
+  const file = documentsCache[issueId];
+  if(!file){
+    alert('No se encontró el documento Word adjunto.');
+    return;
+  }
+  openDocumentPreview(file);
+};
+
+async function openDocumentPreview(file){
+  const viewer = document.getElementById('lightbox');
+  const frame = document.getElementById('viewerDocument');
+  viewerImages = [];
+  viewerIndex = 0;
+  viewer.classList.add('document-mode','show');
+  document.getElementById('lightboxImg').src = '';
+  document.getElementById('lightboxTitle').textContent = file.name;
+  document.getElementById('viewerDownload').style.display = '';
+  document.getElementById('viewerFit').style.display = 'none';
+  document.getElementById('viewerPrev').style.display = 'none';
+  document.getElementById('viewerNext').style.display = 'none';
+  document.getElementById('viewerDownload').onclick = () => downloadWordFile(file);
+  frame.srcdoc = '<!doctype html><meta charset="utf-8"><body style="font:14px sans-serif;padding:24px;color:#253344">Preparando vista previa…</body>';
+  const extension = file.name.split('.').pop().toLowerCase();
+  if(extension !== 'docx'){
+    frame.srcdoc = '<!doctype html><meta charset="utf-8"><body style="font:14px/1.6 sans-serif;padding:24px;color:#253344"><h2>Vista previa no disponible</h2><p>El formato .doc antiguo no se puede previsualizar de forma segura en el navegador. Usa <strong>Descargar</strong> para abrirlo en Word.</p></body>';
+    return;
+  }
+  try{
+    if(!window.DocxPreview || typeof window.DocxPreview.convertDocxToHtml !== 'function'){
+      throw new Error('No se cargó el componente local de vista previa de Word.');
+    }
+    const arrayBuffer = documentBytes(file).buffer;
+    const convertedHtml = await window.DocxPreview.convertDocxToHtml(arrayBuffer);
+    const safeHtml = sanitizedWordPreviewHtml(convertedHtml);
+    frame.srcdoc = `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'"><style>body{font:14px/1.6 Arial,sans-serif;color:#253344;max-width:900px;margin:32px auto;padding:24px}img{max-width:100%;height:auto}table{border-collapse:collapse;max-width:100%}td,th{border:1px solid #9aa8b7;padding:6px;vertical-align:top}blockquote{border-left:3px solid #9aa8b7;margin-left:0;padding-left:14px}pre{white-space:pre-wrap}</style></head><body>${safeHtml}</body></html>`;
+  }catch(error){
+    console.error('Error creando la vista previa Word:', error);
+    frame.srcdoc = '<!doctype html><meta charset="utf-8"><body style="font:14px/1.6 sans-serif;padding:24px;color:#253344"><h2>No se pudo mostrar la vista previa</h2><p>El documento puede estar dañado o usar un contenido no compatible. Puedes descargarlo para abrirlo en Word.</p></body>';
+  }
+}
+
 window.openLightbox = openLightbox;
-document.getElementById('viewerClose').addEventListener('click', () => document.getElementById('lightbox').classList.remove('show'));
+function closeViewer(){
+  document.getElementById('lightbox').classList.remove('show','document-mode');
+  document.getElementById('viewerDocument').srcdoc = '';
+}
+document.getElementById('viewerClose').addEventListener('click', closeViewer);
 document.getElementById('viewerFit').addEventListener('click', () => {
   document.getElementById('lightboxImg').classList.toggle('full-size');
 });
@@ -1363,9 +1668,9 @@ document.getElementById('viewerNext').addEventListener('click', () => {
 });
 document.addEventListener('keydown', (event) => {
   if(!document.getElementById('lightbox').classList.contains('show')) return;
-  if(event.key === 'Escape') document.getElementById('lightbox').classList.remove('show');
-  if(event.key === 'ArrowLeft') document.getElementById('viewerPrev').click();
-  if(event.key === 'ArrowRight') document.getElementById('viewerNext').click();
+  if(event.key === 'Escape') closeViewer();
+  if(!document.getElementById('lightbox').classList.contains('document-mode') && event.key === 'ArrowLeft') document.getElementById('viewerPrev').click();
+  if(!document.getElementById('lightbox').classList.contains('document-mode') && event.key === 'ArrowRight') document.getElementById('viewerNext').click();
 });
 
 function renderUploadPreview(){
@@ -1379,9 +1684,21 @@ function renderUploadPreview(){
     pasteButton.disabled = pendingImages.length >= MAX_IMAGES_PER_ISSUE;
     wrap.innerHTML = `<div class="upload-preview"><div class="thumb-stack">${pendingImages.map((src, idx) => `
       <div class="thumb-item">
-        <img class="thumb is-large" src="${src}">
+        <button type="button" class="upload-image-preview" data-preview-index="${idx}" aria-label="Ampliar imagen ${idx + 1}">
+          <img class="thumb is-large" src="${src}" alt="Vista previa de imagen ${idx + 1}">
+        </button>
         <button type="button" data-index="${idx}">Quitar</button>
       </div>`).join('')}</div></div>`;
+    wrap.querySelectorAll('button[data-preview-index]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const index = Number(btn.getAttribute('data-preview-index'));
+        viewerImages = pendingImages.slice();
+        viewerIndex = index;
+        document.getElementById('lightboxImg').classList.remove('full-size');
+        renderViewer();
+        document.getElementById('lightbox').classList.add('show');
+      });
+    });
     wrap.querySelectorAll('button[data-index]').forEach(btn => {
       btn.addEventListener('click', () => {
         const index = Number(btn.getAttribute('data-index'));
@@ -1404,7 +1721,8 @@ function renderDocumentPreview(){
     wrap.innerHTML = '';
     return;
   }
-  wrap.innerHTML = `<div class="document-preview"><span>Documento Word: ${escapeHtml(file.name)}</span><button type="button" id="btnRemoveWordDocument">Quitar</button></div>`;
+  wrap.innerHTML = `<div class="document-preview"><span>Documento Word: ${escapeHtml(file.name)}</span><div class="document-preview-actions"><button type="button" id="btnPreviewWordDocument">Vista previa</button><button type="button" id="btnRemoveWordDocument">Quitar</button></div></div>`;
+  document.getElementById('btnPreviewWordDocument').addEventListener('click', () => openDocumentPreview(file));
   document.getElementById('btnRemoveWordDocument').addEventListener('click', () => {
     pendingDocument = null;
     documentRemoved = true;
@@ -1833,7 +2151,7 @@ function renderTable(){
     <div class="table-panel">
     <table>
       <thead><tr>
-        <th>Código del caso</th><th>Módulo</th><th>Título del hallazgo</th><th>Descripción del hallazgo</th><th class="thumb-cell">Evidencia</th><th>Severity</th><th>Priority</th><th>Status</th><th>Fecha</th><th class="age-cell">Antigüedad</th><th class="actions-cell"></th>
+        <th>Código del caso</th><th>Módulo</th><th>Título del hallazgo</th><th>Descripción del hallazgo</th><th class="thumb-cell">Evidencia</th><th>Severity</th><th>Priority</th><th>Status</th><th>Fecha</th><th>Fecha cierre</th><th class="age-cell">Antigüedad</th><th class="actions-cell"></th>
       </tr></thead>
       <tbody>
         ${list.map(i => {
@@ -1847,11 +2165,12 @@ function renderTable(){
             <td>${escapeHtml(i.modulo)}</td>
             <td>${escapeHtml(i.formulario)}</td>
             <td class="obs">${escapeHtml(i.obs)}</td>
-            <td class="thumb-cell">${imgs.length ? `<div class="thumb-stack">${imgs.slice(0, 3).map((src, idx) => `<img class="thumb" src="${src}" onclick="openImage('${i.id}', ${idx})">`).join('')}</div>` : `<div class="no-thumb"></div>`}${wordDocument ? `<button type="button" class="document-download" title="Descargar documento Word" onclick="downloadIssueDocument('${escapeHtml(i.id)}')">Word: ${escapeHtml(wordDocument.name)}</button>` : ''}</td>
+            <td class="thumb-cell">${imgs.length ? `<div class="thumb-stack">${imgs.slice(0, 3).map((src, idx) => `<img class="thumb" src="${src}" onclick="openImage('${i.id}', ${idx})">`).join('')}</div>` : `<div class="no-thumb"></div>`}${wordDocument ? `<button type="button" class="document-download" title="Vista previa del documento Word" onclick="openIssueDocument('${escapeHtml(i.id)}')">Word: ${escapeHtml(wordDocument.name)}</button>` : ''}</td>
             <td>${escapeHtml(i.severity)}</td>
             <td>${escapeHtml(i.priority)}</td>
             <td><span class="badge ${i.status}">${STATUS_LABEL[i.status]}</span></td>
             <td class="testid">${escapeHtml(i.fecha)}</td>
+            <td class="testid">${issueClosureDateText(i)}</td>
             <td class="age-cell">${age === null
               ? '<span class="age-ok">—</span>'
               : overdue
@@ -2000,27 +2319,7 @@ function initializeSpellcheck(){
 }
 
 window.downloadIssueDocument = function(issueId){
-  const file = documentsCache[issueId];
-  if(!file || typeof file.dataUrl !== 'string'){
-    alert('No se encontró el documento Word adjunto.');
-    return;
-  }
-  const match = /^data:(application\/(?:msword|vnd\.openxmlformats-officedocument\.wordprocessingml\.document));base64,([A-Za-z0-9+/]+=*)$/.exec(file.dataUrl);
-  if(!match){
-    alert('El documento Word adjunto no tiene un formato válido.');
-    return;
-  }
-  const binary = atob(match[2]);
-  const bytes = new Uint8Array(binary.length);
-  for(let index = 0; index < binary.length; index++) bytes[index] = binary.charCodeAt(index);
-  const url = URL.createObjectURL(new Blob([bytes], {type:match[1]}));
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = file.name;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  downloadWordFile(documentsCache[issueId]);
 };
 
 function formatTrackingDate(value){
@@ -2030,6 +2329,9 @@ function formatTrackingDate(value){
 
 function renderTracking(){
   const list = document.getElementById('trackingList');
+  const currentIssue = editingId ? issues.find(issue => issue.id === editingId) : null;
+  document.getElementById('issueClosureDate').textContent =
+    `Fecha de cierre: ${issueClosureDateText({closedAt: currentIssue?.closedAt, novedades: pendingNovedades})}`;
   if(!pendingNovedades.length){
     list.innerHTML = '<div class="tracking-empty">Aún no hay novedades registradas.</div>';
     return;
@@ -2069,6 +2371,7 @@ function openNew(){
   document.getElementById('issueForm').reset();
   document.getElementById('f_wordDocument').value = '';
   renderModuleOptions(modules[0] && modules[0].name);
+  renderPeopleOptions('');
   document.getElementById('f_testid').value = nextTestId(document.getElementById('f_modulo').value);
   document.getElementById('btnDelete').style.display = 'none';
   document.getElementById('btnSave').textContent = 'Guardar issue';
@@ -2099,7 +2402,7 @@ window.openEdit = function(id, focusTracking=false){
   document.getElementById('f_status').value = i.status;
   document.getElementById('f_severity').value = i.severity;
   document.getElementById('f_priority').value = i.priority;
-  document.getElementById('f_assigned').value = i.assigned || '';
+  renderPeopleOptions(i.assigned || '');
   if(!pendingNovedades.length && i.solucion) pendingNovedades = [{ text: i.solucion, type: 'Novedad', legacy: true }];
   document.getElementById('f_novedad').value = '';
   document.getElementById('f_novedad_tipo').value = 'Novedad';
@@ -2148,7 +2451,10 @@ async function saveQuickComment(){
   novedades.push(entry);
   issue.novedades = novedades;
   issue.solucion = novedades.map(item => typeof item === 'string' ? item : item.text).join('\n\n');
-  if(type === 'Solución') issue.status = 'Closed';
+  if(type === 'Solución'){
+    issue.status = 'Closed';
+    issue.closedAt = entry.createdAt;
+  }
   const button = document.getElementById('btnQuickCommentSave');
   button.disabled = true;
   button.textContent = 'Guardando...';
@@ -2167,6 +2473,33 @@ async function saveQuickComment(){
 
 function moduleIsUsed(name){
   return issues.some(issue => issue.modulo === name);
+}
+
+function personIsAssigned(name){
+  return issues.some(issue => issueAssignedName(issue) === name);
+}
+
+function renderPeople(){
+  const list = document.getElementById('peopleList');
+  if(!people.length){
+    list.innerHTML = '<div class="tracking-empty">Aún no hay personas registradas.</div>';
+    return;
+  }
+  list.innerHTML = people.map(name => {
+    const count = issues.filter(issue => issueAssignedName(issue) === name).length;
+    const canDelete = !personIsAssigned(name);
+    return `<div class="module-row">
+      <strong>${escapeHtml(name)}</strong>
+      <span class="module-prefix">${count} ${count === 1 ? 'issue' : 'issues'}</span>
+      <button class="module-delete" data-person="${escapeHtml(name)}" ${canDelete ? '' : 'disabled title="No se puede eliminar una persona asignada a uno o más issues"'}>Eliminar</button>
+    </div>`;
+  }).join('');
+}
+
+function openPeople(){
+  document.getElementById('personName').value = '';
+  renderPeople();
+  document.getElementById('peopleOverlay').classList.add('show');
 }
 
 function renderModules(){
@@ -2201,6 +2534,51 @@ window.openImage = function(id, index){
 
 document.getElementById('btnNew').addEventListener('click', openNew);
 document.getElementById('btnModules').addEventListener('click', event => openModules(event.target.ownerDocument));
+document.getElementById('btnPeople').addEventListener('click', openPeople);
+document.getElementById('btnClosePeople').addEventListener('click', () => document.getElementById('peopleOverlay').classList.remove('show'));
+document.getElementById('peopleOverlay').addEventListener('click', event => { if(event.target.id === 'peopleOverlay') event.target.classList.remove('show'); });
+document.getElementById('btnAddPerson').addEventListener('click', async () => {
+  const name = document.getElementById('personName').value.trim();
+  if(!name){ alert('Escribe el nombre de la persona.'); return; }
+  if(people.some(person => person.toLocaleLowerCase('es') === name.toLocaleLowerCase('es'))){
+    alert('Ya existe una persona con ese nombre.');
+    return;
+  }
+  people.push(name);
+  try{
+    await savePeople();
+    renderPeopleOptions(name);
+    renderPeople();
+    document.getElementById('personName').value = '';
+  }catch(error){
+    people = people.filter(person => person !== name);
+    console.error('Error guardando personas:', error);
+    alert(error.message || 'No se pudo guardar la persona.');
+  }
+});
+document.getElementById('peopleList').addEventListener('click', async event => {
+  const button = event.target.closest('[data-person]');
+  if(!button || button.disabled) return;
+  const name = button.dataset.person;
+  if(!confirm(`¿Eliminar a "${name}" de la lista de personas?`)) return;
+  people = people.filter(person => person !== name);
+  try{
+    await savePeople();
+    renderPeopleOptions();
+    renderPeople();
+  }catch(error){
+    people.push(name);
+    renderPeople();
+    console.error('Error eliminando persona:', error);
+    alert(error.message || 'No se pudo eliminar la persona.');
+  }
+});
+document.getElementById('personName').addEventListener('keydown', event => {
+  if(event.key === 'Enter'){
+    event.preventDefault();
+    document.getElementById('btnAddPerson').click();
+  }
+});
 document.getElementById('btnCloseModules').addEventListener('click', () => document.getElementById('modulesOverlay').classList.remove('show'));
 document.getElementById('modulesOverlay').addEventListener('click', e => { if(e.target.id === 'modulesOverlay') e.target.classList.remove('show'); });
 document.getElementById('moduleName').addEventListener('input', e => {
@@ -2248,11 +2626,13 @@ document.getElementById('f_novedad').addEventListener('keydown', event => {
 document.getElementById('f_modulo').addEventListener('change', () => {
   if(!editingId) document.getElementById('f_testid').value = nextTestId(document.getElementById('f_modulo').value);
 });
+document.getElementById('f_assigned').addEventListener('focus', () => renderPeopleOptions());
 document.getElementById('btnCancel').addEventListener('click', closeModal);
 document.getElementById('overlay').addEventListener('click', e => { if(e.target.id === 'overlay') closeModal(); });
 
 document.getElementById('issueForm').addEventListener('submit', async (e) => {
   e.preventDefault();
+  const existingIssue = editingId ? issues.find(issue => issue.id === editingId) : null;
   const draftNovedad = document.getElementById('f_novedad').value.trim();
   const draftType = document.getElementById('f_novedad_tipo').value;
   if(draftNovedad){
@@ -2261,12 +2641,27 @@ document.getElementById('issueForm').addEventListener('submit', async (e) => {
   }
   document.getElementById('f_novedad').value = '';
   document.getElementById('f_novedad_tipo').value = 'Novedad';
+  const status = document.getElementById('f_status').value;
+  const existingSolutionDates = new Set((existingIssue?.novedades || [])
+    .filter(entry => entry && typeof entry === 'object' && entry.type === 'Solución')
+    .map(entry => entry.createdAt || entry.date)
+    .filter(Boolean));
+  const newSolution = pendingNovedades
+    .filter(entry => entry && typeof entry === 'object' && entry.type === 'Solución')
+    .filter(entry => !existingSolutionDates.has(entry.createdAt || entry.date))
+    .sort((a, b) => new Date(b.createdAt || b.date) - new Date(a.createdAt || a.date))[0];
+  const closedAt = status === 'Closed'
+    ? newSolution?.createdAt || newSolution?.date || (existingIssue?.status === 'Closed'
+      ? existingIssue.closedAt || excelReportSolutionDate(existingIssue)?.toISOString()
+      : new Date().toISOString())
+    : existingIssue?.closedAt;
   const data = {
     testid: document.getElementById('f_testid').value.trim(),
     modulo: document.getElementById('f_modulo').value.trim(),
     formulario: document.getElementById('f_formulario').value.trim(),
     obs: document.getElementById('f_obs').value.trim(),
-    status: document.getElementById('f_status').value,
+    status,
+    closedAt,
     severity: document.getElementById('f_severity').value,
     priority: document.getElementById('f_priority').value,
     assigned: document.getElementById('f_assigned').value.trim(),
@@ -2428,6 +2823,7 @@ window.kanbanDrop = async function(event){
   }
   suppressKanbanClick = true;
   issue.status = status;
+  if(status === 'Closed') issue.closedAt = new Date().toISOString();
   try{
     await saveIssues();
     render();
@@ -2441,7 +2837,10 @@ window.kanbanDrop = async function(event){
 };
 
 initializeSpellcheck();
-Promise.all([loadModules(), loadIssues(), loadAgeLimit()]);
+Promise.all([loadModules(), loadIssues(), loadAgeLimit()]).then(loadPeople).catch(error => {
+  console.error('Error cargando la lista de personas:', error);
+  alert(error.message || 'No se pudo cargar la lista de personas.');
+});
 </script>
 </body>
 </html>

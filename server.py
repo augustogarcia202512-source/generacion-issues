@@ -9,6 +9,8 @@ from datetime import date, datetime, timedelta
 
 try:
     from openpyxl import Workbook
+    from openpyxl.chart import BarChart, Reference
+    from openpyxl.chart.label import DataLabelList
     from openpyxl.drawing.image import Image
     from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
     from openpyxl.utils import get_column_letter
@@ -163,7 +165,8 @@ class Handler(SimpleHTTPRequestHandler):
             issue_images = images.get(str(issue.get('id')), [])[:5]
             values = [issue.get('testid', ''), issue.get('formulario', ''), issue.get('modulo', ''),
                       issue.get('obs', ''), status_labels.get(status, status), issue.get('severity', ''),
-                      issue.get('priority', ''), issue.get('assigned', ''),
+                      issue.get('priority') or issue.get('Priority') or issue.get('prioridad') or 'Sin definir',
+                      issue.get('assigned', ''),
                       created or '', age if age is not None else '', solution_date or '',
                       last_update or '', trace, len(issue_images), '', '', '', '', '']
             sheet.append(values)
@@ -268,6 +271,7 @@ class Handler(SimpleHTTPRequestHandler):
         def add_section(title, headers, rows, percentage_columns=()):
             metrics.append([title])
             metrics.append(headers)
+            header_row = metrics.max_row
             for row in rows:
                 metrics.append(row)
                 if row and row[0] == 'Total':
@@ -276,19 +280,44 @@ class Handler(SimpleHTTPRequestHandler):
                         cell.font = Font(name='Arial', size=10, bold=True)
                 for column in percentage_columns:
                     metrics.cell(metrics.max_row, column).number_format = '0.0%'
+            data_range = (header_row + 1, metrics.max_row)
             metrics.append([])
+            return data_range
 
         status_rows = [[status_labels[status], count, count / total if total else 0]
                        for status, count in status_counts.items()]
         status_rows.append(['Total', total, 1 if total else 0])
-        add_section('Issues por estado', ['Estado', 'Cantidad', '% del total'], status_rows, (3,))
+        status_data = add_section('Issues por estado', ['Estado', 'Cantidad', '% del total'], status_rows, (3,))
+        status_data = (status_data[0], status_data[1] - 1)
 
         severity_rows = []
         for severity in severities:
             matches = [issue for issue in issues if issue.get('severity') == severity]
             severity_rows.append([severity, sum(issue.get('status') != 'Closed' for issue in matches),
                                   sum(issue.get('status') == 'Closed' for issue in matches), len(matches)])
-        add_section('Issues por severidad', ['Severidad', 'Abiertos', 'Cerrados', 'Total'], severity_rows)
+        severity_data = add_section('Issues por severidad', ['Severidad', 'Abiertos', 'Cerrados', 'Total'], severity_rows)
+
+        priority_order = ['Alta', 'Media', 'Baja', 'High', 'Medium', 'Low', 'Critical', 'Crítica']
+        priorities = {'Alta', 'Media', 'Baja', 'Sin definir'}
+        priorities.update(
+            str(issue.get('priority') or issue.get('Priority') or issue.get('prioridad')).strip()
+            for issue in issues
+            if issue.get('priority') or issue.get('Priority') or issue.get('prioridad')
+        )
+        priorities = sorted(priorities, key=lambda value: (
+            priority_order.index(value) if value in priority_order else len(priority_order), value.lower()
+        ))
+        priority_rows = []
+        for priority in priorities:
+            matches = [
+                issue for issue in issues
+                if str(issue.get('priority') or issue.get('Priority') or issue.get('prioridad') or 'Sin definir').strip() == priority
+            ]
+            priority_rows.append([priority, sum(issue.get('status') != 'Closed' for issue in matches),
+                                 sum(issue.get('status') == 'Closed' for issue in matches), len(matches)])
+        priority_data = add_section(
+            'Issues por prioridad', ['Prioridad', 'Abiertos', 'Cerrados', 'Total'], priority_rows
+        )
 
         module_rows = []
         for module in modules:
@@ -350,6 +379,32 @@ class Handler(SimpleHTTPRequestHandler):
             ['Tasa de reapertura (%)', reopened / total if total else 0]
         ]
         add_section('Indicadores de calidad y gestión', ['Indicador', 'Valor'], quality_rows, (2,))
+
+        def add_column_chart(title, category_column, data_columns, data_range, anchor, colors):
+            first_row, last_row = data_range
+            chart = BarChart()
+            chart.type = 'col'
+            chart.style = 10
+            chart.title = title
+            chart.y_axis.title = 'Cantidad'
+            chart.x_axis.title = title.replace('Issues por ', '', 1)
+            chart.height = 8
+            chart.width = 16
+            chart.legend.position = 'b'
+            chart.dataLabels = DataLabelList()
+            chart.dataLabels.showVal = True
+            categories = Reference(metrics, min_col=category_column, min_row=first_row, max_row=last_row)
+            chart.set_categories(categories)
+            for column, color in zip(data_columns, colors):
+                data = Reference(metrics, min_col=column, min_row=first_row - 1, max_row=last_row)
+                chart.add_data(data, titles_from_data=True)
+                chart.series[-1].graphicalProperties.solidFill = color
+                chart.series[-1].graphicalProperties.line.solidFill = color
+            metrics.add_chart(chart, anchor)
+
+        add_column_chart('Issues por estado', 1, [2], status_data, 'F2', ['E84A42'])
+        add_column_chart('Issues por severidad', 1, [2, 3], severity_data, 'F20', ['E84A42', '35B68A'])
+        add_column_chart('Issues por prioridad', 1, [2, 3], priority_data, 'F38', ['E84A42', '35B68A'])
 
         metrics.column_dimensions['A'].width = 46
         metrics.column_dimensions['B'].width = 20
