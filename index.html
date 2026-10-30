@@ -172,8 +172,8 @@ border-radius:3px; font-family:'Inter',sans-serif; font-size:12.5px;
 .badge.ReOpen{ background: rgba(217,106,156,0.18); color: var(--reopen); border:1px solid rgba(217,106,156,0.4); }
 
 /* Table view */
-.table-panel{ background: var(--panel); border:1px solid var(--line); border-radius:3px; overflow:hidden; }
-table{ width:100%; border-collapse:collapse; }
+.table-panel{ background: var(--panel); border:1px solid var(--line); border-radius:3px; overflow:auto; max-width:100%; }
+table{ width:100%; min-width:1260px; table-layout:fixed; border-collapse:collapse; }
 th{
   text-align:left; padding:12px 14px; font-family:'JetBrains Mono',monospace; font-size:10.5px;
   text-transform:uppercase; letter-spacing:1px; color:var(--text-dim); border-bottom:1px solid var(--line);
@@ -183,11 +183,14 @@ td{ padding:13px 14px; border-bottom:1px solid var(--line); font-size:13.5px; ve
 tr:last-child td{ border-bottom:none; }
 tr:hover td{ background: rgba(232,163,61,0.04); }
 .testid{ font-family:'JetBrains Mono',monospace; color:var(--amber); font-size:12px; }
-.obs{ color:var(--text-dim); max-width:340px; }
-.row-actions{ display:flex; gap:8px; }
+.obs{ color:var(--text-dim); max-width:340px; white-space:pre-wrap; overflow-wrap:anywhere; }
+.actions-cell{ position:sticky; right:0; z-index:1; width:112px; min-width:112px; background:var(--panel); border-left:1px solid var(--line); }
+th.actions-cell{ z-index:2; background:var(--panel-2); }
+tr:hover .actions-cell{ background:#171d25; }
+.row-actions{ display:flex; justify-content:center; gap:6px; flex-wrap:nowrap; }
 .row-actions button{
   background:none; border:1px solid var(--line); color:var(--text-dim); font-size:11px;
-  padding:5px 9px; border-radius:2px; cursor:pointer; font-family:'Inter',sans-serif;
+  padding:5px 7px; border-radius:2px; cursor:pointer; font-family:'Inter',sans-serif; flex:0 0 auto; white-space:nowrap;
 }
 .row-actions button:hover{ border-color: var(--amber); color: var(--amber); }
 .row-actions .icon-action{ width:28px; height:28px; padding:0; display:inline-grid; place-items:center; }
@@ -321,7 +324,7 @@ tr:hover td{ background: rgba(232,163,61,0.04); }
   .module-add{ grid-template-columns:1fr 78px; }
   .kanban{ grid-template-columns: 1fr; }
   .summary{ grid-template-columns: repeat(3,1fr); }
-  table{ display:block; overflow-x:auto; white-space:nowrap; }
+  table{ display:table; white-space:normal; }
 }
 @media (max-width: 520px){
   .modules-header p{ display:none; }
@@ -1818,7 +1821,7 @@ function renderTable(){
     <div class="table-panel">
     <table>
       <thead><tr>
-        <th>Código del caso</th><th>Módulo</th><th>Título del hallazgo</th><th>Descripción del hallazgo</th><th class="thumb-cell">Evidencia</th><th>Severity</th><th>Priority</th><th>Status</th><th>Fecha</th><th class="age-cell">Antigüedad</th><th></th>
+        <th>Código del caso</th><th>Módulo</th><th>Título del hallazgo</th><th>Descripción del hallazgo</th><th class="thumb-cell">Evidencia</th><th>Severity</th><th>Priority</th><th>Status</th><th>Fecha</th><th class="age-cell">Antigüedad</th><th class="actions-cell"></th>
       </tr></thead>
       <tbody>
         ${list.map(i => {
@@ -1842,7 +1845,7 @@ function renderTable(){
               : overdue
                 ? `<span class="age-warning" title="Issue abierto con más de ${ageLimitDays} días">${age} días<span>ALERTA · +${age - ageLimitDays} ${age - ageLimitDays === 1 ? 'DÍA' : 'DÍAS'}</span></span>`
                 : `<span class="age-ok">${age} ${age === 1 ? 'día' : 'días'}</span>`}</td>
-            <td><div class="row-actions">
+            <td class="actions-cell"><div class="row-actions">
               <button onclick="openEdit('${i.id}')">Editar</button>
               <button class="icon-action" onclick="openQuickComment('${i.id}')" title="Agregar comentario" aria-label="Agregar comentario al issue ${escapeHtml(i.testid)}">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
