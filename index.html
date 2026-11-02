@@ -189,6 +189,14 @@ tr:hover td{ background: rgba(232,163,61,0.04); }
 .actions-cell{ position:sticky; right:0; z-index:1; width:112px; min-width:112px; background:var(--panel); border-left:1px solid var(--line); }
 th.actions-cell{ z-index:2; background:var(--panel-2); }
 tr:hover .actions-cell{ background:#171d25; }
+.table-scroll-access{
+  position:fixed; z-index:20; left:max(20px, calc((100vw - 1180px) / 2)); right:max(20px, calc((100vw - 1180px) / 2));
+  bottom:10px; height:22px; overflow-x:auto; overflow-y:hidden;
+  background:var(--panel-2); border:1px solid var(--line); border-radius:3px;
+  box-shadow:0 2px 14px rgba(0,0,0,.4);
+}
+.table-scroll-access[hidden]{ display:none; }
+.table-scroll-access-content{ height:1px; }
 .row-actions{ display:flex; justify-content:center; gap:6px; flex-wrap:nowrap; }
 .row-actions button{
   background:none; border:1px solid var(--line); color:var(--text-dim); font-size:11px;
@@ -369,6 +377,8 @@ tr:hover .actions-cell{ background:#171d25; }
       <button class="module-btn" id="btnImportBackup">Importar datos</button>
       <input type="file" id="backupFile" accept="application/json,.json" hidden>
       <button class="module-btn" id="btnExportExcel">Descargar Excel</button>
+      <button class="module-btn" id="btnImportExcel">Importar Excel</button>
+      <input type="file" id="excelFile" accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" hidden>
       <button class="module-btn" id="btnModules">Módulos</button>
       <button class="module-btn" id="btnPeople">Personas</button>
       <button class="new-btn" id="btnNew">+ Registrar issue</button>
@@ -398,6 +408,9 @@ tr:hover .actions-cell{ background:#171d25; }
 
   <div id="tableView"></div>
   <div id="kanbanView" style="display:none;"></div>
+  <div class="table-scroll-access" id="tableScrollAccess" role="region" aria-label="Desplazamiento horizontal de la tabla" tabindex="0" hidden>
+    <div class="table-scroll-access-content" id="tableScrollAccessContent"></div>
+  </div>
 
   <div class="footer-note">Datos visibles para cualquier persona con este enlace · Actualización en tiempo real</div>
 </div>
@@ -600,6 +613,7 @@ tr:hover .actions-cell{ background:#171d25; }
 
 <script src="spellcheck.bundle.js"></script>
 <script src="docx-preview.bundle.js"></script>
+<script src="excel-import.bundle.js"></script>
 <script>
 const STATUS_ORDER = ['Open','Blocked','ReadyRetest','InProgress','Closed','ReOpen'];
 const STATUS_LABEL = {Open:'Open',Blocked:'Blocked',ReadyRetest:'Ready for Retest',InProgress:'In Progress',Closed:'Closed',ReOpen:'Re-Open'};
@@ -716,20 +730,20 @@ function moduleInitials(name){
   return (initials || name.trim()[0] || 'M').slice(0,5);
 }
 
-function uniqueModulePrefix(name){
+function uniqueModulePrefix(name, moduleList = modules){
   const base = moduleInitials(name);
   let prefix = base;
   let suffix = 2;
-  while(modules.some(module => module.prefix === prefix)) prefix = base + suffix++;
+  while(moduleList.some(module => module.prefix === prefix)) prefix = base + suffix++;
   return prefix;
 }
 
-function nextTestId(moduleName){
-  const module = modules.find(item => item.name === moduleName);
+function nextTestId(moduleName, issueList = issues, moduleList = modules){
+  const module = moduleList.find(item => item.name === moduleName);
   if(!module) return '';
   const escapedPrefix = module.prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const pattern = new RegExp('^' + escapedPrefix + '-(\\d+)$', 'i');
-  const numbers = issues
+  const numbers = issueList
     .map(issue => issue.testid && issue.testid.match(pattern))
     .filter(Boolean)
     .map(match => Number(match[1]))
@@ -999,6 +1013,99 @@ async function importApplicationBackup(file){
     alert(error.message || 'No se pudo importar el archivo de respaldo.');
   }finally{
     document.getElementById('backupFile').value = '';
+  }
+}
+
+async function importExcelIssues(file){
+  if(!file) return;
+  const button = document.getElementById('btnImportExcel');
+  const originalLabel = button.textContent;
+  button.disabled = true;
+  button.textContent = 'Importando...';
+  try{
+    if(file.size > 20 * 1024 * 1024) throw new Error('El archivo Excel supera el límite de 20 MB.');
+    const imported = IssueExcelImport.parseExcelIssues(await file.arrayBuffer());
+    const existingIds = new Set(issues.map(issue => String(issue.testid || '').trim().toLocaleLowerCase('es')));
+    const seenIds = new Set();
+    const updatedModules = modules.map(module => ({...module}));
+    const updatedIssues = [...issues];
+    const toAdd = [];
+    let duplicateCount = 0;
+    let generatedIdCount = 0;
+    for(const item of imported){
+      let testid = item.testid;
+      const key = testid.toLocaleLowerCase('es');
+      if(testid && (existingIds.has(key) || seenIds.has(key))){
+        duplicateCount++;
+        continue;
+      }
+      if(!updatedModules.some(module => module.name.toLocaleLowerCase('es') === item.modulo.toLocaleLowerCase('es'))){
+        updatedModules.push({name:item.modulo, prefix:uniqueModulePrefix(item.modulo, updatedModules)});
+      }
+      if(!testid){
+        testid = nextTestId(item.modulo, updatedIssues, updatedModules);
+        generatedIdCount++;
+      }
+      const assignedKey = testid.toLocaleLowerCase('es');
+      if(existingIds.has(assignedKey) || seenIds.has(assignedKey)){
+        duplicateCount++;
+        continue;
+      }
+      seenIds.add(assignedKey);
+      const id = `iss_import_${Date.now()}_${toAdd.length}`;
+      const issueData = {...item};
+      delete issueData.sourceRow;
+      const issue = {
+        ...issueData,
+        testid,
+        id,
+        fecha: item.fecha || new Date().toLocaleDateString('es-CO'),
+        closedAt: item.closedAt || undefined,
+        hasImage: false
+      };
+      toAdd.push(issue);
+      updatedIssues.push(issue);
+    }
+
+    if(!toAdd.length){
+      alert(`No se agregaron issues nuevos. Se omitieron ${duplicateCount} Test ID duplicados.`);
+      return;
+    }
+
+    const updatedPeople = [...people];
+    for(const name of new Set(toAdd.map(issueAssignedName).filter(Boolean))){
+      if(!updatedPeople.some(person => person.toLocaleLowerCase('es') === name.toLocaleLowerCase('es'))){
+        updatedPeople.push(name);
+      }
+    }
+    const savedModules = await storageApi.set('modules-list', JSON.stringify(updatedModules));
+    const savedPeople = await storageApi.set('people-list', JSON.stringify(updatedPeople));
+    const savedIssues = await storageApi.set('issues-list', JSON.stringify(updatedIssues));
+    if(!savedModules || !savedPeople || !savedIssues){
+      throw new Error('No se pudieron guardar todos los datos importados. Verifica el espacio disponible e intenta de nuevo.');
+    }
+
+    modules = updatedModules;
+    people = updatedPeople;
+    issues = updatedIssues;
+    toAdd.forEach(issue => {
+      imagesCache[issue.id] = [];
+      documentsCache[issue.id] = null;
+    });
+    renderModuleOptions();
+    renderPeopleOptions();
+    renderModules();
+    renderPeople();
+    render();
+    document.getElementById('lastUpdate').textContent = 'Última actualización: ' + new Date().toLocaleString('es-CO');
+    alert(`Importación completada: ${toAdd.length} issues agregados (${generatedIdCount} Test ID asignados automáticamente) y ${duplicateCount} duplicados omitidos. Las imágenes incrustadas en Excel no se importan.`);
+  }catch(error){
+    console.error('Error importando issues desde Excel:', error);
+    alert(error.message || 'No se pudo importar el archivo Excel.');
+  }finally{
+    button.textContent = originalLabel;
+    button.disabled = false;
+    document.getElementById('excelFile').value = '';
   }
 }
 
@@ -2146,6 +2253,7 @@ function renderTable(){
   const el = document.getElementById('tableView');
   if(list.length === 0){
     el.innerHTML = `<div class="table-panel"><div class="empty"><div class="big">Sin issues registrados</div>Registra el primero con el botón "+ Registrar issue".</div></div>`;
+    syncTableScrollAccess();
     return;
   }
   el.innerHTML = `
@@ -2190,6 +2298,26 @@ function renderTable(){
       </tbody>
     </table>
     </div>`;
+  const panel = el.querySelector('.table-panel');
+  panel.addEventListener('scroll', () => {
+    const scrollAccess = document.getElementById('tableScrollAccess');
+    scrollAccess.scrollLeft = panel.scrollLeft;
+  });
+  syncTableScrollAccess();
+}
+
+function syncTableScrollAccess(){
+  const scrollAccess = document.getElementById('tableScrollAccess');
+  const scrollContent = document.getElementById('tableScrollAccessContent');
+  const panel = document.querySelector('#tableView .table-panel');
+  const table = panel && panel.querySelector('table');
+  if(currentView !== 'table' || !panel || !table){
+    scrollAccess.hidden = true;
+    return;
+  }
+  scrollContent.style.width = `${table.scrollWidth}px`;
+  scrollAccess.hidden = panel.scrollWidth <= panel.clientWidth;
+  if(!scrollAccess.hidden) scrollAccess.scrollLeft = panel.scrollLeft;
 }
 
 function renderKanban(){
@@ -2779,6 +2907,15 @@ document.getElementById('btnExportBackup').addEventListener('click', exportAppli
 document.getElementById('btnImportBackup').addEventListener('click', () => document.getElementById('backupFile').click());
 document.getElementById('backupFile').addEventListener('change', event => importApplicationBackup(event.target.files && event.target.files[0]));
 document.getElementById('btnExportExcel').addEventListener('click', downloadExcelWorkbook);
+document.getElementById('btnImportExcel').addEventListener('click', () => document.getElementById('excelFile').click());
+document.getElementById('excelFile').addEventListener('change', event => importExcelIssues(event.target.files && event.target.files[0]));
+document.getElementById('tableScrollAccess').addEventListener('scroll', event => {
+  const panel = document.querySelector('#tableView .table-panel');
+  if(panel && panel.scrollLeft !== event.currentTarget.scrollLeft){
+    panel.scrollLeft = event.currentTarget.scrollLeft;
+  }
+});
+window.addEventListener('resize', syncTableScrollAccess);
 
 const kanbanView = document.getElementById('kanbanView');
 let draggedIssueId = null;
