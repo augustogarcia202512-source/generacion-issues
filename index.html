@@ -599,7 +599,7 @@ tr:hover .actions-cell{ background:#171d25; }
     </div>
     <div class="viewer-actions">
       <button type="button" id="viewerDownload" title="Descargar documento Word" style="display:none">Descargar</button>
-      <button type="button" id="viewerFit" title="Ajustar a la pantalla">Ajustar</button>
+      <button type="button" id="viewerFit" title="Ver tamaño real">Ver tamaño real</button>
       <button type="button" id="viewerPrev" title="Evidencia anterior">Anterior</button>
       <button type="button" id="viewerNext" title="Evidencia siguiente">Siguiente</button>
       <button type="button" id="viewerClose" title="Cerrar vista ampliada">Cerrar ×</button>
@@ -1640,8 +1640,18 @@ function renderViewer(){
   document.getElementById('viewerNext').style.display = '';
   document.getElementById('viewerDocument').srcdoc = '';
   const image = document.getElementById('lightboxImg');
-  image.src = viewerImages[viewerIndex] || '';
-  document.getElementById('lightboxTitle').textContent = `${viewerIndex + 1} de ${viewerImages.length}`;
+  const imageSource = viewerImages[viewerIndex] || '';
+  const title = document.getElementById('lightboxTitle');
+  document.getElementById('viewerFit').textContent = image.classList.contains('full-size')
+    ? 'Ajustar a pantalla'
+    : 'Ver tamaño real';
+  title.textContent = `${viewerIndex + 1} de ${viewerImages.length}`;
+  image.onload = () => {
+    if(image.src === imageSource){
+      title.textContent = `${viewerIndex + 1} de ${viewerImages.length} · ${image.naturalWidth} × ${image.naturalHeight} px`;
+    }
+  };
+  image.src = imageSource;
   document.getElementById('viewerPrev').disabled = viewerImages.length < 2;
   document.getElementById('viewerNext').disabled = viewerImages.length < 2;
 }
@@ -1764,7 +1774,11 @@ function closeViewer(){
 }
 document.getElementById('viewerClose').addEventListener('click', closeViewer);
 document.getElementById('viewerFit').addEventListener('click', () => {
-  document.getElementById('lightboxImg').classList.toggle('full-size');
+  const image = document.getElementById('lightboxImg');
+  image.classList.toggle('full-size');
+  document.getElementById('viewerFit').textContent = image.classList.contains('full-size')
+    ? 'Ajustar a pantalla'
+    : 'Ver tamaño real';
 });
 document.getElementById('viewerPrev').addEventListener('click', () => {
   viewerIndex = (viewerIndex - 1 + viewerImages.length) % viewerImages.length;
@@ -1875,6 +1889,10 @@ function processImageFile(file){
     reader.onload = () => {
       const img = new Image();
       img.onload = () => {
+        if(file.type === 'image/png' || file.type === 'image/jpeg'){
+          resolve(reader.result);
+          return;
+        }
         const MAX_DIM = 2200;
         let w = img.width, h = img.height;
         if(w > MAX_DIM || h > MAX_DIM){
@@ -2077,12 +2095,11 @@ function cropCapturedImage(sourceDataUrl){
     accept.onclick = () => {
       if(!selection) return;
       const {x, y, width, height} = selection;
-      const scale = Math.min(1, 2200 / Math.max(width, height));
       const cropped = document.createElement('canvas');
-      cropped.width = Math.max(1, Math.round(width * scale));
-      cropped.height = Math.max(1, Math.round(height * scale));
+      cropped.width = Math.max(1, Math.round(width));
+      cropped.height = Math.max(1, Math.round(height));
       cropped.getContext('2d').drawImage(canvas, x, y, width, height, 0, 0, cropped.width, cropped.height);
-      const dataUrl = cropped.toDataURL('image/jpeg', 0.92);
+      const dataUrl = cropped.toDataURL('image/png');
       cleanup();
       resolve(dataUrl);
     };
@@ -2160,7 +2177,7 @@ async function captureScreen(){
     context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
     returnCaptureFocus();
-    const selectedDataUrl = await cropCapturedImage(canvas.toDataURL('image/jpeg', 0.92));
+    const selectedDataUrl = await cropCapturedImage(canvas.toDataURL('image/png'));
     if(selectedDataUrl){
       pendingImages.push(selectedDataUrl);
       renderUploadPreview();

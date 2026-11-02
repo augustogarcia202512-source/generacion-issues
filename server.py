@@ -5,17 +5,24 @@ import os
 from pathlib import Path
 import base64
 import io
+import tempfile
 from datetime import date, datetime, timedelta
 
 try:
     from openpyxl import Workbook
     from openpyxl.chart import BarChart, Reference
     from openpyxl.chart.label import DataLabelList
-    from openpyxl.drawing.image import Image
     from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
     from openpyxl.utils import get_column_letter
 except ImportError:
     Workbook = None
+
+try:
+    import pythoncom
+    import win32com.client
+except ImportError:
+    pythoncom = None
+    win32com = None
 
 ROOT = Path(__file__).resolve().parent
 DATA_DIR = ROOT / 'data'
@@ -183,14 +190,6 @@ class Handler(SimpleHTTPRequestHandler):
             for column in (9, 11, 12):
                 sheet.cell(issue_index, column).number_format = 'dd/mm/yyyy'
 
-            for image_index, data_url in enumerate(issue_images):
-                image = self.decode_excel_image(data_url)
-                if image:
-                    scale = min(190 / image.width, 125 / image.height, 1)
-                    image.width = int(image.width * scale)
-                    image.height = int(image.height * scale)
-                    sheet.add_image(image, f'{get_column_letter(15 + image_index)}{issue_index}')
-
         sheet.auto_filter.ref = f'A1:{get_column_letter(14 + MAX_IMAGES_PER_ISSUE)}{len(issues) + 1}'
 
         metrics = workbook.create_sheet('Resumen')
@@ -201,7 +200,109 @@ class Handler(SimpleHTTPRequestHandler):
         output = io.BytesIO()
         workbook.save(output)
         output.seek(0)
+        if any(images.get(str(issue.get('id')), [])[:MAX_IMAGES_PER_ISSUE] for issue in issues):
+            return self.embed_evidence_as_ole(output.getvalue(), issues, images)
         return output
+
+    def embed_evidence_as_ole(self, workbook_data, issues, images):
+        if os.name != 'nt' or win32com is None:
+            raise RuntimeError(
+                'Para exportar evidencias como objetos con icono, ejecuta la aplicación local en Windows '
+                'con Microsoft Excel instalado y las dependencias de requirements.txt actualizadas.'
+            )
+
+        with tempfile.TemporaryDirectory(prefix='generacion-issues-excel-') as temp_dir:
+            temp_path = Path(temp_dir)
+            workbook_path = temp_path / 'issues.xlsx'
+            workbook_path.write_bytes(workbook_data)
+            evidence_objects = []
+
+            for row_number, issue in enumerate(issues, 2):
+                test_id = str(issue.get('testid') or issue.get('id') or '').strip()
+                for image_index, data_url in enumerate(
+                    images.get(str(issue.get('id')), [])[:MAX_IMAGES_PER_ISSUE], 1
+                ):
+                    prefix, separator, encoded = data_url.partition(',')
+                    if not separator or not prefix.startswith('data:image/'):
+                        raise ValueError(f'La evidencia {image_index} del issue {test_id} no es una imagen válida.')
+                    try:
+                        image_data = base64.b64decode(encoded, validate=True)
+                    except (ValueError, base64.binascii.Error) as error:
+                        raise ValueError(
+                            f'No se pudo decodificar la evidencia {image_index} del issue {test_id}.'
+                        ) from error
+
+                    mime_type = prefix[5:].split(';', 1)[0].lower()
+                    extension = {
+                        'image/jpeg': '.jpg',
+                        'image/png': '.png',
+                        'image/gif': '.gif',
+                        'image/bmp': '.bmp',
+                        'image/webp': '.webp',
+                        'image/tiff': '.tif',
+                    }.get(mime_type)
+                    if not extension:
+                        raise ValueError(
+                            f'El formato {mime_type or "desconocido"} de la evidencia {image_index} '
+                            f'del issue {test_id} no se puede incrustar como objeto.'
+                        )
+
+                    image_path = temp_path / f'evidence_{row_number}_{image_index}{extension}'
+                    image_path.write_bytes(image_data)
+                    evidence_objects.append((
+                        row_number,
+                        14 + image_index,
+                        image_path,
+                        f'Evidencia {image_index} - {test_id}'[:200],
+                    ))
+
+            pythoncom.CoInitialize()
+            excel = None
+            book = None
+            try:
+                excel = win32com.client.DispatchEx('Excel.Application')
+                excel.Visible = False
+                excel.DisplayAlerts = False
+                excel.EnableEvents = False
+                excel.AutomationSecurity = 3
+                book = excel.Workbooks.Open(
+                    str(workbook_path),
+                    UpdateLinks=0,
+                    ReadOnly=False,
+                    AddToMru=False,
+                    IgnoreReadOnlyRecommended=True,
+                )
+                sheet = book.Worksheets.Item('Bitácora')
+                icon_path = Path(os.environ.get('SystemRoot', r'C:\Windows')) / 'System32' / 'packager.dll'
+                for row_number, column_number, image_path, label in evidence_objects:
+                    cell = sheet.Cells(row_number, column_number)
+                    ole_object = sheet.OLEObjects().Add(
+                        ClassType='',
+                        Filename=str(image_path),
+                        Link=False,
+                        DisplayAsIcon=True,
+                        IconFileName=str(icon_path),
+                        IconIndex=0,
+                        IconLabel=label,
+                        Left=cell.Left + 2,
+                        Top=cell.Top + 2,
+                        Width=48,
+                        Height=48,
+                    )
+                    ole_object.Placement = 1
+                book.Save()
+            finally:
+                try:
+                    if book is not None:
+                        book.Close(SaveChanges=False)
+                finally:
+                    try:
+                        if excel is not None:
+                            excel.Quit()
+                    finally:
+                        pythoncom.CoUninitialize()
+
+            return io.BytesIO(workbook_path.read_bytes())
 
     @staticmethod
     def parse_report_date(value):
@@ -235,13 +336,6 @@ class Handler(SimpleHTTPRequestHandler):
             if isinstance(item, dict) and item.get('type') == 'Solución'
         ]
         return max((parsed for parsed in dates if parsed), default=None)
-
-    def decode_excel_image(self, data_url):
-        prefix, separator, payload = data_url.partition(',')
-        if not separator or not prefix.startswith('data:image/'):
-            return None
-        raw = base64.b64decode(payload)
-        return Image(io.BytesIO(raw))
 
     def populate_metrics(self, metrics, issues, images, scope, status_labels, age_limit_days):
         total = len(issues)
