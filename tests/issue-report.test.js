@@ -24,6 +24,7 @@ const issue = {
 const documentWithEvidence = await createIssueReportDocument(issue, [tinyPng, tinyPng]);
 const bytesWithEvidence = await Packer.toBuffer(documentWithEvidence);
 const extractedWithEvidence = await mammoth.extractRawText({buffer: bytesWithEvidence});
+const reportDocumentXmlBeforeTemplate = await (await JSZip.loadAsync(bytesWithEvidence)).file('word/document.xml').async('string');
 
 for (const expected of [
   'CASO DE PRUEBAS',
@@ -39,6 +40,13 @@ for (const expected of [
 ]) {
   assert.ok(extractedWithEvidence.value.includes(expected), `Generated report contains "${expected}"`);
 }
+assert.equal((reportDocumentXmlBeforeTemplate.match(/<w:tbl>/g) || []).length, 1);
+assert.match(reportDocumentXmlBeforeTemplate, /<w:t[^>]*>CASO DE PRUEBAS<\/w:t>/);
+assert.match(reportDocumentXmlBeforeTemplate, /<w:t[^>]*>EVIDENCIA \/ PRUEBAS<\/w:t>/);
+assert.match(reportDocumentXmlBeforeTemplate, /<w:shd[^>]*w:fill="FFFFFF"/);
+assert.ok(reportDocumentXmlBeforeTemplate.indexOf('<w:tbl>') < reportDocumentXmlBeforeTemplate.indexOf('Código'));
+assert.ok(reportDocumentXmlBeforeTemplate.indexOf('<w:tbl>') < reportDocumentXmlBeforeTemplate.indexOf('Descripción extensa sin perder saltos de línea.'));
+assert.match(reportDocumentXmlBeforeTemplate, /<w:tbl>[\s\S]*?<w:drawing>[\s\S]*?<\/w:tbl>/);
 
 const documentWithoutEvidence = await createIssueReportDocument({...issue, novedades: []}, []);
 const bytesWithoutEvidence = await Packer.toBuffer(documentWithoutEvidence);

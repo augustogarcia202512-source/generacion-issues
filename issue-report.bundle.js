@@ -16173,8 +16173,8 @@ var IssueReport = (() => {
     soft: "EEF3F7",
     white: "FFFFFF"
   };
-  var CONTENT_WIDTH = 10640;
-  var IMAGE_MAX_WIDTH = 680;
+  var CONTENT_WIDTH = 10489;
+  var IMAGE_MAX_WIDTH = 490;
   var IMAGE_MAX_HEIGHT = 680;
   var REPORT_PAGE_SIZE = { width: 12242, height: 15842 };
   var REPORT_PAGE_MARGINS = { top: 567, right: 902, bottom: 851, left: 851, header: 709, footer: 369, gutter: 0 };
@@ -16209,17 +16209,14 @@ var IssueReport = (() => {
   }
   function sectionHeading(text) {
     return new Paragraph({
-      spacing: { before: 220, after: 140 },
-      shading: { type: ShadingType.CLEAR, fill: COLORS.navy },
-      indent: { left: 140, right: 100 },
-      border: { bottom: { style: BorderStyle.SINGLE, size: 12, color: COLORS.amber, space: 3 } },
+      spacing: { before: 180, after: 80 },
+      keepNext: true,
       children: [new TextRun({
-        text: text.toLocaleUpperCase("es"),
+        text,
         font: "Arial",
         size: 20,
         bold: true,
-        color: COLORS.white,
-        characterSpacing: 12
+        color: "000000"
       })]
     });
   }
@@ -16232,62 +16229,47 @@ var IssueReport = (() => {
         font: "Arial",
         size: 22,
         bold: true,
-        color: COLORS.navy
+        color: "000000"
       })]
     });
   }
-  function tableCell(text, { label = false, width, last = false } = {}) {
+  function reportCell(children, { shading, margins = { top: 100, bottom: 100, left: 120, right: 120 } } = {}) {
     return new TableCell({
-      width: { size: width, type: WidthType.DXA },
-      margins: { top: 95, bottom: 95, left: 120, right: 120 },
-      shading: label ? { type: ShadingType.CLEAR, fill: COLORS.soft } : void 0,
+      width: { size: CONTENT_WIDTH, type: WidthType.DXA },
+      margins,
+      shading: shading ? { type: ShadingType.CLEAR, fill: shading } : void 0,
       borders: {
-        top: { style: BorderStyle.SINGLE, size: 1, color: COLORS.line },
-        bottom: { style: BorderStyle.SINGLE, size: 1, color: COLORS.line },
-        left: { style: BorderStyle.SINGLE, size: 1, color: COLORS.line },
-        right: { style: BorderStyle.SINGLE, size: 1, color: COLORS.line }
+        top: { style: BorderStyle.SINGLE, size: 6, color: "000000" },
+        bottom: { style: BorderStyle.SINGLE, size: 6, color: "000000" },
+        left: { style: BorderStyle.SINGLE, size: 6, color: "000000" },
+        right: { style: BorderStyle.SINGLE, size: 6, color: "000000" }
       },
-      children: [new Paragraph({
-        spacing: { after: 0 },
-        children: [new TextRun({
-          text: String(text ?? ""),
-          font: "Arial",
-          size: label ? 17 : 18,
-          bold: label,
-          color: label ? COLORS.navy : COLORS.text
-        })]
-      })]
+      children
     });
   }
-  function metadataTable(issue, reportDate) {
-    const fields = [
-      ["C\xF3digo", safeText(issue.testid)],
-      ["M\xF3dulo", safeText(issue.modulo)],
-      ["Fecha de registro", safeText(issue.fecha, reportDate)],
-      ["Estado", STATUS_LABELS[issue.status] || safeText(issue.status)],
-      ["Severidad", safeText(issue.severity)],
-      ["Prioridad", safeText(issue.priority || issue.Priority || issue.prioridad)],
-      ["Asignado a", safeText(issue.assigned, "Sin asignar")],
-      ["Fecha de cierre", safeText(issue.closedAtText || issue.closedAt, "\u2014")]
-    ];
-    const labelWidth = 1620;
-    const valueWidth = 3700;
-    const rows = [];
-    for (let index = 0; index < fields.length; index += 2) {
-      rows.push(new TableRow({
-        cantSplit: true,
-        children: [
-          tableCell(fields[index][0], { label: true, width: labelWidth }),
-          tableCell(fields[index][1], { width: valueWidth }),
-          tableCell(fields[index + 1][0], { label: true, width: labelWidth }),
-          tableCell(fields[index + 1][1], { width: valueWidth })
-        ]
-      }));
-    }
+  function borderedTable(rows) {
+    const border = { style: BorderStyle.SINGLE, size: 6, color: "000000" };
     return new Table({
       width: { size: CONTENT_WIDTH, type: WidthType.DXA },
-      columnWidths: [labelWidth, valueWidth, labelWidth, valueWidth],
+      columnWidths: [CONTENT_WIDTH],
+      borders: { top: border, bottom: border, left: border, right: border, insideHorizontal: border, insideVertical: border },
       rows
+    });
+  }
+  function centeredTitle(text, size, after = 0) {
+    return new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { after },
+      children: [new TextRun({ text, font: "Arial", size, bold: true, color: "000000" })]
+    });
+  }
+  function metadataParagraph(label, value) {
+    return new Paragraph({
+      spacing: { after: 0, line: 240 },
+      children: [
+        new TextRun({ text: `${label}: `, font: "Arial", size: 20, bold: true, color: "000000" }),
+        new TextRun({ text: String(value ?? ""), font: "Arial", size: 20, color: "000000" })
+      ]
     });
   }
   function decodeImageDataUrl(dataUrl) {
@@ -16475,40 +16457,30 @@ var IssueReport = (() => {
     if (!issue || typeof issue !== "object") throw new TypeError("No se encontr\xF3 el issue para generar el informe.");
     const generatedAt = new Intl.DateTimeFormat("es-CO", { dateStyle: "long" }).format(/* @__PURE__ */ new Date());
     const images = await Promise.all(evidence.map(prepareImage));
-    const children = [
-      new Paragraph({
-        alignment: AlignmentType.CENTER,
-        spacing: { after: 70 },
-        children: [new TextRun({ text: "CASO DE PRUEBAS", font: "Arial", size: 30, bold: true, color: COLORS.navy })]
-      }),
-      new Paragraph({
-        alignment: AlignmentType.CENTER,
-        spacing: { after: 220 },
-        children: [new TextRun({
-          text: safeText(issue.formulario, "Sin t\xEDtulo"),
-          font: "Arial",
-          size: 25,
-          bold: true,
-          color: COLORS.text
-        })]
-      }),
-      sectionHeading("Evidencia / pruebas"),
-      metadataTable(issue, generatedAt),
-      sectionHeading("Resumen del caso"),
+    const content = [
+      metadataParagraph("C\xF3digo", safeText(issue.testid)),
+      metadataParagraph("M\xF3dulo", safeText(issue.modulo)),
+      metadataParagraph("Fecha de ejecuci\xF3n", safeText(issue.fecha, generatedAt)),
+      metadataParagraph("Estado", STATUS_LABELS[issue.status] || safeText(issue.status)),
+      metadataParagraph("Severidad", safeText(issue.severity)),
+      metadataParagraph("Prioridad", safeText(issue.priority || issue.Priority || issue.prioridad)),
+      metadataParagraph("Asignado a", safeText(issue.assigned, "Sin asignar")),
+      metadataParagraph("Fecha de cierre", safeText(issue.closedAtText || issue.closedAt, "\u2014")),
+      sectionHeading("RESUMEN DEL CASO"),
       detailHeading("1. T\xEDtulo"),
       textParagraph(safeText(issue.formulario, "Sin t\xEDtulo")),
       detailHeading("2. Descripci\xF3n del problema"),
       textParagraph(safeText(issue.obs, "Sin descripci\xF3n registrada.")),
-      detailHeading("3. Evidencia y comportamiento")
+      detailHeading("3. Evidencia y comportamiento:")
     ];
     if (images.length) {
       for (let index = 0; index < images.length; index++) {
         const image = images[index];
-        children.push(
-          textParagraph(`Evidencia ${index + 1}`, { size: 18, bold: true, color: COLORS.navy, after: 60 }),
+        content.push(
+          textParagraph(`${index + 1}. Evidencia ${index + 1}:`, { size: 20, bold: true, after: 60 }),
           new Paragraph({
             alignment: AlignmentType.CENTER,
-            spacing: { after: 180 },
+            spacing: { after: 120 },
             children: [new ImageRun({
               data: image.bytes,
               type: image.extension,
@@ -16523,19 +16495,36 @@ var IssueReport = (() => {
         );
       }
     } else {
-      children.push(textParagraph("Este issue no tiene im\xE1genes adjuntas.", { color: COLORS.muted, italics: true }));
+      content.push(textParagraph("Este issue no tiene im\xE1genes adjuntas.", { color: "000000", italics: true }));
     }
     const updates = trackingContent(issue);
     if (updates.length) {
-      children.push(sectionHeading("Seguimiento y novedades"), ...updates);
+      content.push(sectionHeading("Seguimiento y novedades"), ...updates);
     }
-    children.push(
+    content.push(
       new Paragraph({
         spacing: { before: 300 },
         alignment: AlignmentType.RIGHT,
-        children: [new TextRun({ text: `Generado el ${generatedAt}`, font: "Arial", size: 16, color: COLORS.muted, italics: true })]
+        children: [new TextRun({ text: `Generado el ${generatedAt}`, font: "Arial", size: 16, color: "404040", italics: true })]
       })
     );
+    const reportTable = borderedTable([
+      new TableRow({
+        cantSplit: true,
+        children: [reportCell([centeredTitle("CASO DE PRUEBAS", 24)], { margins: { top: 40, bottom: 40, left: 80, right: 80 } })]
+      }),
+      new TableRow({
+        cantSplit: true,
+        children: [reportCell([centeredTitle(safeText(issue.formulario, "Sin t\xEDtulo"), 20, 0)], { margins: { top: 40, bottom: 40, left: 80, right: 80 } })]
+      }),
+      new TableRow({
+        cantSplit: true,
+        children: [reportCell([centeredTitle("EVIDENCIA / PRUEBAS", 22)], { margins: { top: 20, bottom: 20, left: 80, right: 80 } })]
+      }),
+      new TableRow({
+        children: [reportCell(content, { shading: "FFFFFF", margins: { top: 90, bottom: 90, left: 45, right: 45 } })]
+      })
+    ]);
     return new File({
       creator: "Bit\xE1cora de Issues / QA",
       title: `Informe de pruebas - ${safeText(issue.testid)}`,
@@ -16559,7 +16548,7 @@ var IssueReport = (() => {
             })]
           })
         },
-        children
+        children: [reportTable]
       }]
     });
   }
