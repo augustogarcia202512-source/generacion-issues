@@ -614,6 +614,7 @@ tr:hover .actions-cell{ background:#171d25; }
 <script src="spellcheck.bundle.js"></script>
 <script src="docx-preview.bundle.js"></script>
 <script src="excel-import.bundle.js"></script>
+<script src="excel-ole.bundle.js"></script>
 <script>
 const STATUS_ORDER = ['Open','Blocked','ReadyRetest','InProgress','Closed','ReOpen'];
 const STATUS_LABEL = {Open:'Open',Blocked:'Blocked',ReadyRetest:'Ready for Retest',InProgress:'In Progress',Closed:'Closed',ReOpen:'Re-Open'};
@@ -1138,13 +1139,54 @@ function excelDataUrlBytes(dataUrl){
   return {bytes, extension: match[1].toLowerCase().replace('jpeg', 'jpg')};
 }
 
-function excelImageDimensions(dataUrl){
-  return new Promise((resolve, reject) => {
-    const image = new Image();
-    image.onload = () => resolve({width:image.naturalWidth, height:image.naturalHeight});
-    image.onerror = () => reject(new Error('No se pudo leer el tamaño de una evidencia para Excel.'));
-    image.src = dataUrl;
-  });
+async function excelPrepareOleImage(dataUrl){
+  const image = excelDataUrlBytes(dataUrl);
+  if(!image) throw new Error('Una evidencia no tiene un formato de imagen válido para Excel.');
+  if(image.extension === 'png' || image.extension === 'jpg') return image;
+
+  const loaded = new Image();
+  loaded.src = dataUrl;
+  try{
+    await loaded.decode();
+  }catch{
+    throw new Error('No se pudo preparar una evidencia para incrustarla en Excel.');
+  }
+  const canvas = document.createElement('canvas');
+  canvas.width = loaded.naturalWidth;
+  canvas.height = loaded.naturalHeight;
+  const context = canvas.getContext('2d');
+  if(!context) throw new Error('No se pudo preparar una evidencia para incrustarla en Excel.');
+  context.drawImage(loaded, 0, 0);
+  const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+  if(!blob) throw new Error('No se pudo convertir una evidencia al formato PNG para Excel.');
+  return {bytes:new Uint8Array(await blob.arrayBuffer()), extension:'png'};
+}
+
+function excelOleAnchorXml(column, row){
+  return `<from><xdr:col>${column}</xdr:col><xdr:colOff>31750</xdr:colOff><xdr:row>${row}</xdr:row><xdr:rowOff>31750</xdr:rowOff></from><to><xdr:col>${column}</xdr:col><xdr:colOff>955675</xdr:colOff><xdr:row>${row}</xdr:row><xdr:rowOff>869950</xdr:rowOff></to>`;
+}
+
+function excelOleDrawingAnchor(ole, widthMap){
+  const shapeId = 2049 + ole.index;
+  const leftPt = widthMap.slice(0, ole.column).reduce((sum, width) => sum + width, 0) * 5.25 + 2.5;
+  const topPt = 28.5 + ole.row * 110;
+  const x = Math.round(leftPt * 12700);
+  const y = Math.round(topPt * 12700);
+  return `<mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"><mc:Choice xmlns:a14="http://schemas.microsoft.com/office/drawing/2010/main" Requires="a14"><xdr:twoCellAnchor><xdr:from><xdr:col>${ole.column}</xdr:col><xdr:colOff>31750</xdr:colOff><xdr:row>${ole.row}</xdr:row><xdr:rowOff>31750</xdr:rowOff></xdr:from><xdr:to><xdr:col>${ole.column}</xdr:col><xdr:colOff>955675</xdr:colOff><xdr:row>${ole.row}</xdr:row><xdr:rowOff>869950</xdr:rowOff></xdr:to><xdr:sp><xdr:nvSpPr><xdr:cNvPr id="${shapeId}" name="Object ${ole.index + 1}" hidden="1"><a:extLst><a:ext uri="{63B3BB69-23CF-44E3-9099-C40C66FF867C}"><a14:compatExt spid="_x0000_s${shapeId}"/></a:ext></a:extLst></xdr:cNvPr><xdr:cNvSpPr/></xdr:nvSpPr><xdr:spPr><a:xfrm><a:off x="${x}" y="${y}"/><a:ext cx="923925" cy="838200"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr></xdr:sp><xdr:clientData/></xdr:twoCellAnchor></mc:Choice><mc:Fallback/></mc:AlternateContent>`;
+}
+
+function excelOleObjectXml(ole, imageRelationshipId){
+  const shapeId = 2049 + ole.index;
+  const objectRelationshipId = `rId${ole.index + 3}`;
+  const anchor = excelOleAnchorXml(ole.column, ole.row);
+  return `<mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"><mc:Choice Requires="x14"><oleObject shapeId="${shapeId}" progId="Package" r:id="${objectRelationshipId}" dvAspect="DVASPECT_ICON"><objectPr defaultSize="0" r:id="${imageRelationshipId}"><anchor moveWithCells="1" sizeWithCells="1">${anchor}</anchor></objectPr></oleObject></mc:Choice><mc:Fallback><oleObject shapeId="${shapeId}" progId="Package" r:id="${objectRelationshipId}" dvAspect="DVASPECT_ICON"/></mc:Fallback></mc:AlternateContent>`;
+}
+
+function excelOleVmlShape(ole, widthMap){
+  const shapeId = 2049 + ole.index;
+  const leftPt = widthMap.slice(0, ole.column).reduce((sum, width) => sum + width, 0) * 5.25 + 2.5;
+  const topPt = 28.5 + ole.row * 110;
+  return `<v:shape id="_x0000_s${shapeId}" o:spt="75" type="#_x0000_t75" style="position:absolute;left:${leftPt}pt;top:${topPt}pt;height:66pt;width:72.75pt;" o:ole="t" fillcolor="window [65]" filled="t" o:preferrelative="t" stroked="t" coordsize="21600,21600"><v:path/><v:fill on="t" color2="window [65]" focussize="0,0"/><v:stroke color="windowText [64]" miterlimit="8" joinstyle="miter"/><v:imagedata o:relid="rId1" o:title=""/><o:lock v:ext="edit" aspectratio="t"/><x:ClientData ObjectType="Pict"><x:Anchor>${ole.column},3,${ole.row},3,${ole.column},100,${ole.row},91</x:Anchor></x:ClientData></v:shape>`;
 }
 
 function excelCreateZip(entries){
@@ -1289,8 +1331,9 @@ async function downloadExcelWorkbookClient(exportIssues = filtered(), scope = ''
   try{
     const headers = ['Test ID','Título del hallazgo','Módulo','Descripción del hallazgo','Estado','Severidad','Prioridad','Asignado a','Fecha registro','Antigüedad (días)','Fecha cierre','Última actualización','Comentarios / trazabilidad','Imágenes',
       ...Array.from({length:MAX_IMAGES_PER_ISSUE}, (_, index) => `Evidencia ${index + 1}`)];
-    const media = [];
     const drawingParts = [];
+    const oleObjects = [];
+    const widthMap = [14,30,22,44,18,14,14,22,16,16,16,18,46,12,...Array(MAX_IMAGES_PER_ISSUE).fill(30)];
     const sheetRows = [];
     sheetRows.push(`<row r="1" ht="26" customHeight="1">${headers.map((header, column) => excelReportXmlCell(`${excelReportColumn(column + 1)}1`, header, 1)).join('')}</row>`);
 
@@ -1322,37 +1365,38 @@ async function downloadExcelWorkbookClient(exportIssues = filtered(), scope = ''
       )).join('');
       sheetRows.push(`<row r="${rowNumber}" ht="110" customHeight="1">${cells}</row>`);
 
-      const imageDimensions = await Promise.all(issueImages.map(excelImageDimensions));
-      issueImages.forEach((dataUrl, imageIndex) => {
-        const image = excelDataUrlBytes(dataUrl);
-        if(!image) return;
-        const dimensions = imageDimensions[imageIndex];
-        const scale = Math.min(190 / dimensions.width, 125 / dimensions.height);
-        const width = Math.max(1, Math.round(dimensions.width * scale));
-        const height = Math.max(1, Math.round(dimensions.height * scale));
-        const extension = ['png','jpg','jpeg','gif','bmp'].includes(image.extension) ? image.extension : 'png';
-        const mediaName = `image${media.length + 1}.${extension}`;
-        const relationshipId = `rId${media.length + 1}`;
-        media.push({name:`xl/media/${mediaName}`, data:image.bytes});
-        const col = 14 + imageIndex;
-        const shapeId = media.length + 1;
-        drawingParts.push(`
-          <xdr:oneCellAnchor>
-            <xdr:from><xdr:col>${col}</xdr:col><xdr:colOff>7000</xdr:colOff><xdr:row>${issueIndex + 1}</xdr:row><xdr:rowOff>7000</xdr:rowOff></xdr:from>
-            <xdr:ext cx="${width * 9525}" cy="${height * 9525}"/>
-            <xdr:pic>
-              <xdr:nvPicPr><xdr:cNvPr id="${shapeId}" name="Evidencia ${imageIndex + 1} - ${excelXmlText(issue.testid || issue.id)}"/><xdr:cNvPicPr><a:picLocks noChangeAspect="1"/></xdr:cNvPicPr></xdr:nvPicPr>
-              <xdr:blipFill><a:blip r:embed="${relationshipId}"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill>
-              <xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${width * 9525}" cy="${height * 9525}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr>
-            </xdr:pic>
-            <xdr:clientData/>
-          </xdr:oneCellAnchor>`);
-      });
+      for(let imageIndex = 0; imageIndex < issueImages.length; imageIndex++){
+        const image = await excelPrepareOleImage(issueImages[imageIndex]);
+        const ole = {
+          index: oleObjects.length,
+          row: issueIndex + 1,
+          column: 14 + imageIndex,
+          packageBytes: IssueExcelOle.createOlePackage(image.bytes, image.extension)
+        };
+        oleObjects.push(ole);
+        drawingParts.push(excelOleDrawingAnchor(ole, widthMap));
+      }
     }
 
-    const widthMap = [14,30,22,44,18,14,14,22,16,16,16,18,46,12,...Array(MAX_IMAGES_PER_ISSUE).fill(30)];
     const colsXml = widthMap.map((width, index) => `<col min="${index + 1}" max="${index + 1}" width="${width}" customWidth="1"/>`).join('');
-    const sheetXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheetViews><sheetView showGridLines="0" workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols>${colsXml}</cols><sheetData>${sheetRows.join('')}</sheetData><autoFilter ref="A1:${excelReportColumn(14 + MAX_IMAGES_PER_ISSUE)}${exportIssues.length + 1}"/><drawing r:id="rId1"/></worksheet>`;
+    const imageRelationshipId = `rId${oleObjects.length + 3}`;
+    const oleObjectsXml = oleObjects.map(ole => excelOleObjectXml(ole, imageRelationshipId)).join('');
+    const oleRelationships = oleObjects.map(ole =>
+      `<Relationship Id="rId${ole.index + 3}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/oleObject" Target="../embeddings/oleObject${ole.index + 1}.bin"/>`
+    ).join('');
+    const oleWorksheetRelationships = oleObjects.length
+      ? `<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/vmlDrawing" Target="../drawings/vmlDrawing1.vml"/>${oleRelationships}<Relationship Id="${imageRelationshipId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/oleIcon.emf"/>`
+      : '';
+    const oleDrawingXml = oleObjects.length
+      ? `<legacyDrawing r:id="rId2"/><oleObjects>${oleObjectsXml}</oleObjects>`
+      : '';
+    const vmlDrawingXml = oleObjects.length
+      ? `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><xml xmlns:oa="urn:schemas-microsoft-com:office:activation" xmlns:p="urn:schemas-microsoft-com:office:powerpoint" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:v="urn:schemas-microsoft-com:vml"><o:shapelayout v:ext="edit"><o:idmap v:ext="edit" data="2"/></o:shapelayout><v:shapetype id="_x0000_t75" coordsize="21600,21600" o:spt="75" o:preferrelative="t" path="m@4@5l@4@11@9@11@9@5xe" filled="f" stroked="f"><v:stroke joinstyle="miter"/><v:formulas><v:f eqn="if lineDrawn pixelLineWidth 0"/><v:f eqn="sum @0 1 0"/><v:f eqn="sum 0 0 @1"/><v:f eqn="prod @2 1 2"/><v:f eqn="prod @3 21600 pixelWidth"/><v:f eqn="prod @3 21600 pixelHeight"/><v:f eqn="sum @0 0 1"/><v:f eqn="prod @6 1 2"/><v:f eqn="prod @7 21600 pixelWidth"/><v:f eqn="sum @8 21600 0"/><v:f eqn="prod @7 21600 pixelHeight"/><v:f eqn="sum @10 21600 0"/></v:formulas><v:path o:extrusionok="f" gradientshapeok="t" o:connecttype="rect"/><o:lock v:ext="edit" aspectratio="t"/></v:shapetype>${oleObjects.map(ole => excelOleVmlShape(ole, widthMap)).join('')}</xml>`
+      : '';
+    const vmlRelationships = oleObjects.length
+      ? '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/oleIcon.emf"/>'
+      : '';
+    const sheetXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:x14="http://schemas.microsoft.com/office/spreadsheetml/2009/9/main"><sheetViews><sheetView showGridLines="0" workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols>${colsXml}</cols><sheetData>${sheetRows.join('')}</sheetData><autoFilter ref="A1:${excelReportColumn(14 + MAX_IMAGES_PER_ISSUE)}${exportIssues.length + 1}"/><drawing r:id="rId1"/>${oleDrawingXml}</worksheet>`;
 
     const countBy = (field, items = exportIssues) => items.reduce((counts, issue) => {
       const key = String(issue[field] || 'Sin definir');
@@ -1533,26 +1577,29 @@ async function downloadExcelWorkbookClient(exportIssues = filtered(), scope = ''
     }));
     const metricsXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">${detailViews}<cols>${sheet2Cols}</cols><sheetData>${summaryRows.join('')}</sheetData><drawing r:id="rId1"/></worksheet>`;
     const drawingXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">${drawingParts.join('')}</xdr:wsDr>`;
-    const drawingRelationships = media.map((item, index) => `<Relationship Id="rId${index + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/${item.name.split('/').pop()}"/>`).join('');
-
     const workbookXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Bitácora" sheetId="1" r:id="rId1"/><sheet name="Resumen" sheetId="2" r:id="rId3"/></sheets></workbook>`;
     const stylesXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="5"><font><sz val="10"/><name val="Arial"/></font><font><b/><color rgb="FFFFFFFF"/><sz val="10"/><name val="Arial"/></font><font><b/><color rgb="FFFFFFFF"/><sz val="14"/><name val="Arial"/></font><font><b/><sz val="10"/><name val="Arial"/></font><font><b/><color rgb="FF9C1C16"/><sz val="10"/><name val="Arial"/></font></fonts><fills count="5"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF1F3A5F"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFEAF0F6"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFFFD9D6"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="2"><border/><border><left style="thin"><color rgb="FFD4DEE7"/></left><right style="thin"><color rgb="FFD4DEE7"/></right><top style="thin"><color rgb="FFD4DEE7"/></top><bottom style="thin"><color rgb="FFD4DEE7"/></bottom></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="8"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf><xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf><xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf><xf numFmtId="0" fontId="3" fillId="3" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf><xf numFmtId="10" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf><xf numFmtId="0" fontId="2" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="center"/></xf><xf numFmtId="0" fontId="4" fillId="4" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`;
     const entries = [
-      {name:'[Content_Types].xml', data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Default Extension="jpg" ContentType="image/jpeg"/><Default Extension="jpeg" ContentType="image/jpeg"/><Default Extension="gif" ContentType="image/gif"/><Default Extension="bmp" ContentType="image/bmp"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/><Override PartName="/xl/drawings/drawing1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/><Override PartName="/xl/drawings/drawing2.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/><Override PartName="/xl/charts/chart1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.chart+xml"/><Override PartName="/xl/charts/chart2.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.chart+xml"/><Override PartName="/xl/charts/chart3.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.chart+xml"/></Types>`},
+      {name:'[Content_Types].xml', data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Default Extension="jpg" ContentType="image/jpeg"/><Default Extension="jpeg" ContentType="image/jpeg"/><Default Extension="gif" ContentType="image/gif"/><Default Extension="bmp" ContentType="image/bmp"/><Default Extension="bin" ContentType="application/vnd.openxmlformats-officedocument.oleObject"/><Default Extension="emf" ContentType="image/x-emf"/><Default Extension="vml" ContentType="application/vnd.openxmlformats-officedocument.vmlDrawing"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/><Override PartName="/xl/drawings/drawing1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/><Override PartName="/xl/drawings/drawing2.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/><Override PartName="/xl/charts/chart1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.chart+xml"/><Override PartName="/xl/charts/chart2.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.chart+xml"/><Override PartName="/xl/charts/chart3.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.chart+xml"/></Types>`},
       {name:'_rels/.rels', data:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>'},
       {name:'xl/workbook.xml', data:workbookXml},
       {name:'xl/_rels/workbook.xml.rels', data:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/></Relationships>'},
       {name:'xl/styles.xml', data:stylesXml},
       {name:'xl/worksheets/sheet1.xml', data:sheetXml},
       {name:'xl/worksheets/sheet2.xml', data:metricsXml},
-      {name:'xl/worksheets/_rels/sheet1.xml.rels', data:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing1.xml"/></Relationships>'},
+      {name:'xl/worksheets/_rels/sheet1.xml.rels', data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing1.xml"/>${oleWorksheetRelationships}</Relationships>`},
       {name:'xl/drawings/drawing1.xml', data:drawingXml},
-      {name:'xl/drawings/_rels/drawing1.xml.rels', data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${drawingRelationships}</Relationships>`},
+      {name:'xl/drawings/_rels/drawing1.xml.rels', data:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>'},
+      ...(oleObjects.length ? [
+        {name:'xl/drawings/vmlDrawing1.vml', data:vmlDrawingXml},
+        {name:'xl/drawings/_rels/vmlDrawing1.vml.rels', data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${vmlRelationships}</Relationships>`},
+        {name:'xl/media/oleIcon.emf', data:IssueExcelOle.iconBytes},
+        ...oleObjects.map(ole => ({name:`xl/embeddings/oleObject${ole.index + 1}.bin`, data:ole.packageBytes}))
+      ] : []),
       {name:'xl/worksheets/_rels/sheet2.xml.rels', data:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing2.xml"/></Relationships>'},
       {name:'xl/drawings/drawing2.xml', data:summaryDrawing},
       {name:'xl/drawings/_rels/drawing2.xml.rels', data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${summaryDrawingRelationships}</Relationships>`},
-      ...chartEntries,
-      ...media
+      ...chartEntries
     ];
 
     const blob = excelCreateZip(entries);
