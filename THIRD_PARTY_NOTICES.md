@@ -7,6 +7,8 @@ The local Spanish spell checker uses:
 - `mammoth` 1.13.0, used for local `.docx` to HTML preview, BSD-2-Clause. Its license text is included in `licenses/mammoth-BSD-2-Clause.txt`.
 - `@e965/xlsx` 0.20.3, used to read uploaded Excel files in the browser, Apache-2.0. Its license text is included in `licenses/xlsx-Apache-2.0.txt`.
 - `cfb` 1.2.2, used to create embedded OLE package objects for browser-generated Excel files, Apache-2.0. Its license text is included in `licenses/xlsx-Apache-2.0.txt`.
+- `docx` 9.15.2, used to generate per-issue Word reports in the browser, MIT.
+- `jszip` 3.10.2, used to preserve the original Word report header in generated documents, MIT.
 
 The dictionary is generated from [sbosio/rla-es](https://github.com/sbosio/rla-es) and is bundled locally so spell checking works without sending issue text to an external service.
 

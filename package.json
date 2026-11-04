@@ -7,14 +7,18 @@
     "build:docx-preview": "esbuild src/docx-preview.js --bundle --platform=browser --format=iife --global-name=DocxPreview --outfile=docx-preview.bundle.js",
     "build:excel-import": "esbuild src/excel-import.js --bundle --platform=browser --format=iife --global-name=IssueExcelImport --outfile=excel-import.bundle.js",
     "build:excel-ole": "esbuild src/excel-ole.js --bundle --platform=browser --format=iife --global-name=IssueExcelOle --loader:.bin=binary --loader:.emf=binary --outfile=excel-ole.bundle.js",
+    "build:issue-report": "esbuild src/issue-report.js --bundle --platform=browser --format=iife --global-name=IssueReport --outfile=issue-report.bundle.js",
     "check:spellcheck": "node tests/spellcheck.test.js",
     "check:excel-import": "node tests/excel-import.test.js",
-    "check:excel-ole": "node tests/excel-ole.test.js"
+    "check:excel-ole": "node tests/excel-ole.test.js",
+    "check:issue-report": "node tests/issue-report.test.js"
   },
   "dependencies": {
     "@e965/xlsx": "^0.20.3",
     "cfb": "^1.2.2",
     "dictionary-es": "4.0.0",
+    "docx": "^9.15.2",
+    "jszip": "^3.10.2",
     "mammoth": "1.13.0",
     "nspell": "2.1.5"
   },
