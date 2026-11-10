@@ -4,7 +4,8 @@ SQLite y los guarda como archivos en una carpeta, organizados por issue.
 Uso:
     python export-documents.py [carpeta_destino]
 
-Si no se indica carpeta destino, se crea "documentos-exportados" junto a este script.
+Si no se indica carpeta destino, se crea "documentos-exportados" junto a la base de
+datos (C:/generacion-issues-data/documentos-exportados), fuera de OneDrive.
 La base de datos se lee de C:/generacion-issues-data/storage.db (la misma que usa
 Docker) o de data/storage.db si existe (modo local con start.bat).
 """
@@ -34,8 +35,8 @@ def safe_filename(name):
 
 
 def main():
-    output_dir = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / 'documentos-exportados'
     db_path = find_database()
+    output_dir = Path(sys.argv[1]) if len(sys.argv) > 1 else db_path.parent / 'documentos-exportados'
     print(f'Base de datos: {db_path}')
 
     conn = sqlite3.connect(f'file:{db_path}?mode=ro', uri=True)

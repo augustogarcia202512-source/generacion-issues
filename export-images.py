@@ -4,7 +4,8 @@ y las guarda como archivos en una carpeta, organizadas por issue.
 Uso:
     python export-images.py [carpeta_destino]
 
-Si no se indica carpeta destino, se crea "imagenes-exportadas" junto a este script.
+Si no se indica carpeta destino, se crea "imagenes-exportadas" junto a la base de
+datos (C:/generacion-issues-data/imagenes-exportadas), fuera de OneDrive.
 La base de datos se lee de C:/generacion-issues-data/storage.db (la misma que usa
 Docker) o de data/storage.db si existe (modo local con start.bat).
 """
@@ -37,8 +38,8 @@ def find_database():
 
 
 def main():
-    output_dir = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / 'imagenes-exportadas'
     db_path = find_database()
+    output_dir = Path(sys.argv[1]) if len(sys.argv) > 1 else db_path.parent / 'imagenes-exportadas'
     print(f'Base de datos: {db_path}')
 
     conn = sqlite3.connect(f'file:{db_path}?mode=ro', uri=True)

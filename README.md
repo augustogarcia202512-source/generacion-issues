@@ -51,5 +51,5 @@ Tu enlace será algo como:
 - En GitHub Pages, los datos se guardan en el navegador del usuario mediante almacenamiento local.
 - Con Docker, los datos se guardan en la base de datos SQLite `C:\generacion-issues-data\storage.db`, que queda en tu equipo mediante el volumen configurado.
 - En modo local (start.bat), el servidor incluido en server.py usa la misma base de datos SQLite en `data/storage.db`; si existe un `data/storage.json` anterior, lo migra automáticamente y lo renombra a `storage.json.migrated`.
-- Para extraer las imágenes de los issues como archivos, ejecuta `python export-images.py`; se crea la carpeta `imagenes-exportadas` con una subcarpeta por issue.
-- Para extraer los documentos Word adjuntos, ejecuta `python export-documents.py`; se crea la carpeta `documentos-exportados` con una subcarpeta por issue y el nombre original de cada archivo.
+- Para extraer las imágenes de los issues como archivos, ejecuta `python export-images.py`; se crea la carpeta `imagenes-exportadas` junto a la base de datos (fuera de OneDrive), con una subcarpeta por issue.
+- Para extraer los documentos Word adjuntos, ejecuta `python export-documents.py`; se crea la carpeta `documentos-exportados` junto a la base de datos, con una subcarpeta por issue y el nombre original de cada archivo.
