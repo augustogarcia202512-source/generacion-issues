@@ -1,5 +1,19 @@
 # Bitácora de Issues
 
+## Ejecutar con Docker (recomendado)
+
+Requisito: Docker Desktop instalado.
+
+1. Abre una terminal en la carpeta del proyecto.
+2. Ejecuta `docker compose up -d --build`.
+3. Abre en el navegador:
+   - http://localhost:8000/index.html
+4. Para detenerla: `docker compose down`.
+
+Los datos se guardan en una base de datos SQLite (`storage.db`) en la carpeta `C:\generacion-issues-data` de tu equipo, montada como volumen: la información sobrevive aunque el contenedor se detenga o se reconstruya. Esa ruta está fuera de OneDrive a propósito, para evitar bloqueos de sincronización con el archivo de base de datos; puedes cambiarla editando el volumen en `docker-compose.yml`. Si ya tenías datos en `data/storage.json`, se importan automáticamente la primera vez.
+
+En Docker (Linux) el Excel se genera con las evidencias incrustadas como imágenes visibles en las celdas; los objetos OLE con icono requieren Windows con Excel de escritorio (ver ejecución local).
+
 ## Ejecutar la app localmente
 
 1. Abre la carpeta del proyecto.
@@ -35,4 +49,7 @@ Tu enlace será algo como:
 ## Datos
 
 - En GitHub Pages, los datos se guardan en el navegador del usuario mediante almacenamiento local.
-- En modo local, también puedes usar el servidor incluido en server.py, que guarda los datos en data/storage.json.
+- Con Docker, los datos se guardan en la base de datos SQLite `C:\generacion-issues-data\storage.db`, que queda en tu equipo mediante el volumen configurado.
+- En modo local (start.bat), el servidor incluido en server.py usa la misma base de datos SQLite en `data/storage.db`; si existe un `data/storage.json` anterior, lo migra automáticamente y lo renombra a `storage.json.migrated`.
+- Para extraer las imágenes de los issues como archivos, ejecuta `python export-images.py`; se crea la carpeta `imagenes-exportadas` con una subcarpeta por issue.
+- Para extraer los documentos Word adjuntos, ejecuta `python export-documents.py`; se crea la carpeta `documentos-exportados` con una subcarpeta por issue y el nombre original de cada archivo.

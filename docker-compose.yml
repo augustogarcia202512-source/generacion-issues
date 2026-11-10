@@ -1,0 +1,10 @@
+services:
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      # La base de datos (storage.db) queda en esta carpeta de tu equipo,
+      # fuera de OneDrive para evitar bloqueos de sincronización.
+      - C:\generacion-issues-data:/app/data
+    restart: unless-stopped

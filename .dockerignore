@@ -1,0 +1,9 @@
+.git
+.github
+.venv
+venv
+node_modules
+.playwright-mcp
+data
+*.md
+!README.md

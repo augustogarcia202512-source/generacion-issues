@@ -1,1 +1,6 @@
 node_modules/
+__pycache__/
+data/storage.db
+data/storage.json.migrated
+imagenes-exportadas/
+documentos-exportados/

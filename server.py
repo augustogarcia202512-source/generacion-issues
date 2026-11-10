@@ -1,11 +1,14 @@
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
+from contextlib import closing
 import json
 import os
 from pathlib import Path
 import base64
 import io
+import sqlite3
 import tempfile
+import threading
 from datetime import date, datetime, timedelta
 
 try:
@@ -25,13 +28,70 @@ except ImportError:
     win32com = None
 
 ROOT = Path(__file__).resolve().parent
-DATA_DIR = ROOT / 'data'
+DATA_DIR = Path(os.environ.get('DATA_DIR', str(ROOT / 'data')))
 DATA_DIR.mkdir(exist_ok=True)
 STORAGE_FILE = DATA_DIR / 'storage.json'
+DB_FILE = DATA_DIR / 'storage.db'
+STORAGE_LOCK = threading.Lock()
 MAX_IMAGES_PER_ISSUE = 10
 
-if not STORAGE_FILE.exists():
-    STORAGE_FILE.write_text('{}', encoding='utf-8')
+
+def db_connect():
+    conn = sqlite3.connect(DB_FILE)
+    conn.execute('CREATE TABLE IF NOT EXISTS storage (key TEXT PRIMARY KEY, value TEXT NOT NULL)')
+    return conn
+
+
+def storage_get(key):
+    with STORAGE_LOCK, closing(db_connect()) as conn:
+        row = conn.execute('SELECT value FROM storage WHERE key = ?', (key,)).fetchone()
+    if row is None:
+        return None
+    try:
+        return json.loads(row[0])
+    except Exception:
+        return row[0]
+
+
+def storage_set(key, value):
+    with STORAGE_LOCK, closing(db_connect()) as conn:
+        conn.execute(
+            'INSERT OR REPLACE INTO storage (key, value) VALUES (?, ?)',
+            (key, json.dumps(value, ensure_ascii=False)),
+        )
+        conn.commit()
+
+
+def storage_delete(key):
+    with STORAGE_LOCK, closing(db_connect()) as conn:
+        conn.execute('DELETE FROM storage WHERE key = ?', (key,))
+        conn.commit()
+
+
+def init_storage():
+    """Migra una única vez el storage.json heredado hacia SQLite."""
+    if not STORAGE_FILE.exists():
+        return
+    with STORAGE_LOCK, closing(db_connect()) as conn:
+        count = conn.execute('SELECT COUNT(*) FROM storage').fetchone()[0]
+        if count:
+            return
+        try:
+            legacy = json.loads(STORAGE_FILE.read_text(encoding='utf-8'))
+        except Exception:
+            return
+        if not isinstance(legacy, dict) or not legacy:
+            return
+        for key, value in legacy.items():
+            conn.execute(
+                'INSERT OR REPLACE INTO storage (key, value) VALUES (?, ?)',
+                (str(key), json.dumps(value, ensure_ascii=False)),
+            )
+        conn.commit()
+    STORAGE_FILE.rename(STORAGE_FILE.with_suffix('.json.migrated'))
+
+
+init_storage()
 
 class Handler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
@@ -64,8 +124,7 @@ class Handler(SimpleHTTPRequestHandler):
     def handle_storage_get(self, parsed):
         params = parse_qs(parsed.query)
         key = params.get('key', [''])[0]
-        data = self.load_storage()
-        value = data.get(key)
+        value = storage_get(key)
         payload = {'value': value} if value is not None else {}
         self.send_json(payload)
 
@@ -87,9 +146,7 @@ class Handler(SimpleHTTPRequestHandler):
             self.send_json({'ok': False}, status=400)
             return
 
-        data = self.load_storage()
-        data[key] = value
-        self.save_storage(data)
+        storage_set(key, value)
         self.send_json({'ok': True})
 
     def handle_export_excel(self, parsed):
@@ -201,8 +258,71 @@ class Handler(SimpleHTTPRequestHandler):
         workbook.save(output)
         output.seek(0)
         if any(images.get(str(issue.get('id')), [])[:MAX_IMAGES_PER_ISSUE] for issue in issues):
-            return self.embed_evidence_as_ole(output.getvalue(), issues, images)
+            if os.name == 'nt':
+                return self.embed_evidence_as_ole(output.getvalue(), issues, images)
+            return self.embed_evidence_as_images(output.getvalue(), issues, images)
         return output
+
+    def decode_evidence_image(self, data_url, issue, image_index):
+        test_id = str(issue.get('testid') or issue.get('id') or '').strip()
+        prefix, separator, encoded = data_url.partition(',')
+        if not separator or not prefix.startswith('data:image/'):
+            raise ValueError(f'La evidencia {image_index} del issue {test_id} no es una imagen válida.')
+        try:
+            image_data = base64.b64decode(encoded, validate=True)
+        except (ValueError, base64.binascii.Error) as error:
+            raise ValueError(
+                f'No se pudo decodificar la evidencia {image_index} del issue {test_id}.'
+            ) from error
+
+        mime_type = prefix[5:].split(';', 1)[0].lower()
+        extension = {
+            'image/jpeg': '.jpg',
+            'image/png': '.png',
+            'image/gif': '.gif',
+            'image/bmp': '.bmp',
+            'image/webp': '.webp',
+            'image/tiff': '.tif',
+        }.get(mime_type)
+        if not extension:
+            raise ValueError(
+                f'El formato {mime_type or "desconocido"} de la evidencia {image_index} '
+                f'del issue {test_id} no se puede incrustar como objeto.'
+            )
+        return image_data, extension
+
+    def embed_evidence_as_images(self, workbook_data, issues, images):
+        """Alternativa para entornos sin Excel (p. ej. Docker/Linux): incrusta las
+        evidencias como imágenes visibles en las celdas en vez de objetos OLE."""
+        from openpyxl import load_workbook
+        from openpyxl.drawing.image import Image as XlsxImage
+        from PIL import Image as PilImage
+
+        workbook = load_workbook(io.BytesIO(workbook_data))
+        sheet = workbook['Bitácora']
+        with tempfile.TemporaryDirectory(prefix='generacion-issues-excel-') as temp_dir:
+            temp_path = Path(temp_dir)
+            for row_number, issue in enumerate(issues, 2):
+                for image_index, data_url in enumerate(
+                    images.get(str(issue.get('id')), [])[:MAX_IMAGES_PER_ISSUE], 1
+                ):
+                    image_data, extension = self.decode_evidence_image(data_url, issue, image_index)
+                    image_path = temp_path / f'evidence_{row_number}_{image_index}{extension}'
+                    image_path.write_bytes(image_data)
+                    if extension not in ('.png', '.jpg', '.gif', '.bmp'):
+                        with PilImage.open(image_path) as pil_image:
+                            image_path = image_path.with_suffix('.png')
+                            pil_image.save(image_path, 'PNG')
+                    xlsx_image = XlsxImage(str(image_path))
+                    scale = min(210 / xlsx_image.width, 140 / xlsx_image.height, 1.0)
+                    xlsx_image.width = max(1, round(xlsx_image.width * scale))
+                    xlsx_image.height = max(1, round(xlsx_image.height * scale))
+                    cell_ref = f'{get_column_letter(14 + image_index)}{row_number}'
+                    sheet.add_image(xlsx_image, cell_ref)
+            output = io.BytesIO()
+            workbook.save(output)
+            output.seek(0)
+            return output
 
     def embed_evidence_as_ole(self, workbook_data, issues, images):
         if os.name != 'nt' or win32com is None:
@@ -222,31 +342,7 @@ class Handler(SimpleHTTPRequestHandler):
                 for image_index, data_url in enumerate(
                     images.get(str(issue.get('id')), [])[:MAX_IMAGES_PER_ISSUE], 1
                 ):
-                    prefix, separator, encoded = data_url.partition(',')
-                    if not separator or not prefix.startswith('data:image/'):
-                        raise ValueError(f'La evidencia {image_index} del issue {test_id} no es una imagen válida.')
-                    try:
-                        image_data = base64.b64decode(encoded, validate=True)
-                    except (ValueError, base64.binascii.Error) as error:
-                        raise ValueError(
-                            f'No se pudo decodificar la evidencia {image_index} del issue {test_id}.'
-                        ) from error
-
-                    mime_type = prefix[5:].split(';', 1)[0].lower()
-                    extension = {
-                        'image/jpeg': '.jpg',
-                        'image/png': '.png',
-                        'image/gif': '.gif',
-                        'image/bmp': '.bmp',
-                        'image/webp': '.webp',
-                        'image/tiff': '.tif',
-                    }.get(mime_type)
-                    if not extension:
-                        raise ValueError(
-                            f'El formato {mime_type or "desconocido"} de la evidencia {image_index} '
-                            f'del issue {test_id} no se puede incrustar como objeto.'
-                        )
-
+                    image_data, extension = self.decode_evidence_image(data_url, issue, image_index)
                     image_path = temp_path / f'evidence_{row_number}_{image_index}{extension}'
                     image_path.write_bytes(image_data)
                     evidence_objects.append((
@@ -538,21 +634,8 @@ class Handler(SimpleHTTPRequestHandler):
             self.send_json({'ok': False}, status=400)
             return
 
-        data = self.load_storage()
-        data.pop(key, None)
-        self.save_storage(data)
+        storage_delete(key)
         self.send_json({'ok': True})
-
-    def load_storage(self):
-        try:
-            with STORAGE_FILE.open('r', encoding='utf-8') as fh:
-                return json.load(fh)
-        except Exception:
-            return {}
-
-    def save_storage(self, data):
-        with STORAGE_FILE.open('w', encoding='utf-8') as fh:
-            json.dump(data, fh, ensure_ascii=False, indent=2)
 
     def send_json(self, payload, status=200):
         body = json.dumps(payload).encode('utf-8')
